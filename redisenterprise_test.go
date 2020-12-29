@@ -17,18 +17,25 @@ func TestPlugin(t *testing.T) {
    username := os.Getenv("RS_USERNAME")
    password := os.Getenv("RS_PASSWORD")
 
-   t.Run("Initialize", func(t *testing.T) { testRedisEnterpriseDBInitialize(t,url,username,password) })
-   t.Run("NewUser", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password) })
+   t.Run("Initialize", func(t *testing.T) { testRedisEnterpriseDBInitialize(t,url,username,password,"") })
+   t.Run("Initialize - database", func(t *testing.T) { testRedisEnterpriseDBInitialize(t,url,username,password,"mydb") })
+   t.Run("NewUser", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"") })
+   t.Run("NewUser - database", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"mydb") })
    t.Run("UpdateUser change password", func(t *testing.T) { testRedisEnterpriseUpdateUserChangePassword(t,url,username,password) })
-   t.Run("DeleteUser", func(t *testing.T) { testRedisEnterpriseDeleteUser(t,url,username,password) })
+   t.Run("DeleteUser", func(t *testing.T) { testRedisEnterpriseDeleteUser(t,url,username,password,"") })
+   t.Run("DeleteUser - database", func(t *testing.T) { testRedisEnterpriseDeleteUser(t,url,username,password,"mydb") })
 
 }
 
-func initDatabase(t *testing.T, url string, username string, password string) *RedisEnterpriseDB {
+func initDatabase(t *testing.T, url string, username string, password string,database string) *RedisEnterpriseDB {
    config := map[string]interface{}{
       "url" : url,
       "username" : username,
       "password" : password,
+   }
+
+   if len(database) > 0 {
+      config["database"] = database
    }
 
    req := dbplugin.InitializeRequest{
@@ -44,10 +51,10 @@ func initDatabase(t *testing.T, url string, username string, password string) *R
 }
 
 
-func testRedisEnterpriseDBInitialize(t *testing.T, url string, username string, password string) {
+func testRedisEnterpriseDBInitialize(t *testing.T, url string, username string, password string,database string) {
    t.Log("Testing initialize - no TLS")
 
-   db := initDatabase(t,url,username,password)
+   db := initDatabase(t,url,username,password,database)
 
    err := db.Close()
    if err != nil {
@@ -56,10 +63,10 @@ func testRedisEnterpriseDBInitialize(t *testing.T, url string, username string, 
 
 }
 
-func testRedisEnterpriseNewUser(t *testing.T, url string, username string, password string) {
+func testRedisEnterpriseNewUser(t *testing.T, url string, username string, password string,database string) {
    t.Log("Testing new user")
 
-   db := initDatabase(t,url,username,password)
+   db := initDatabase(t,url,username,password,database)
 
 	createReq := dbplugin.NewUserRequest{
 		UsernameConfig: dbplugin.UsernameMetadata{
@@ -67,7 +74,7 @@ func testRedisEnterpriseNewUser(t *testing.T, url string, username string, passw
 			RoleName:    "test",
 		},
 		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"db_member"}`},
+			Commands: []string{`{"role":"DB Member"}`},
 		},
 		Password:   "testing",
 		Expiration: time.Now().Add(time.Minute),
@@ -81,7 +88,7 @@ func testRedisEnterpriseNewUser(t *testing.T, url string, username string, passw
 func testRedisEnterpriseUpdateUserChangePassword(t *testing.T, url string, username string, password string) {
    t.Log("Testing user password change")
 
-   db := initDatabase(t,url,username,password)
+   db := initDatabase(t,url,username,password,"")
 
    createReq := dbplugin.NewUserRequest{
 		UsernameConfig: dbplugin.UsernameMetadata{
@@ -89,7 +96,7 @@ func testRedisEnterpriseUpdateUserChangePassword(t *testing.T, url string, usern
 			RoleName:    "test",
 		},
 		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"db_member"}`},
+			Commands: []string{`{"role":"DB Member"}`},
 		},
 		Password:   "testing",
 		Expiration: time.Now().Add(time.Minute),
@@ -108,10 +115,10 @@ func testRedisEnterpriseUpdateUserChangePassword(t *testing.T, url string, usern
 
 }
 
-func testRedisEnterpriseDeleteUser(t *testing.T, url string, username string, password string) {
+func testRedisEnterpriseDeleteUser(t *testing.T, url string, username string, password string, database string) {
    t.Log("Testing delete user")
 
-   db := initDatabase(t,url,username,password)
+   db := initDatabase(t,url,username,password,database)
 
    createReq := dbplugin.NewUserRequest{
 		UsernameConfig: dbplugin.UsernameMetadata{
@@ -119,7 +126,7 @@ func testRedisEnterpriseDeleteUser(t *testing.T, url string, username string, pa
 			RoleName:    "test",
 		},
 		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"db_member"}`},
+			Commands: []string{`{"role":"DB Member"}`},
 		},
 		Password:   "testing",
 		Expiration: time.Now().Add(time.Minute),

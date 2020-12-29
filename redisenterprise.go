@@ -160,6 +160,82 @@ func (c *SimpleRESTClient) delete(apiPath string) error {
 	return nil
 }
 
+// findDatabase translates from a database name to a cluster internal identifier (UID)
+func findDatabase(client SimpleRESTClient,databaseName string) (float64,bool,error) {
+   // TODO: This is horrible. There is no way to access the database by name so we have
+   // to get all the databases and find the UID
+   var v interface{}
+   err := client.get("/v1/bdbs",&v)
+   if err != nil {
+      return 0, false, fmt.Errorf("Cannot get database list: %s", err)
+   }
+   var uid float64
+   found := false
+   for _, item := range v.([]interface{}) {
+      db := item.(map[string]interface{})
+      if db["name"].(string) == databaseName {
+         uid = db["uid"].(float64)
+         found = true
+         break
+      }
+   }
+
+   return uid, found, nil
+
+}
+
+// findDatabase translates from a database name to a cluster internal identifier (UID)
+func findRole(client SimpleRESTClient,roleName string) (float64,string,bool,error) {
+   // TODO: This is horrible. There is no way to access the database by name so we have
+   // to get all the databases and find the UID
+   var v interface{}
+   err := client.get("/v1/roles",&v)
+   if err != nil {
+      return 0, "",false, fmt.Errorf("Cannot get role list: %s", err)
+   }
+   var uid float64
+   var management string
+   found := false
+   for _, item := range v.([]interface{}) {
+      role := item.(map[string]interface{})
+      if role["name"].(string) == roleName {
+         uid = role["uid"].(float64)
+         management = role["management"].(string)
+         found = true
+         break
+      }
+   }
+
+   return uid, management, found, nil
+
+}
+
+
+// findUser translates from a username to a cluster internal identifier (UID)
+func findUser(client SimpleRESTClient,username string) (float64,bool,error) {
+   // TODO: This is horrible. There is no way to access the user by name so we have
+   // to get all the users and find the UID
+   var v interface{}
+   err := client.get("/v1/users",&v)
+   if err != nil {
+      return 0, false, fmt.Errorf("Cannot get user list: %s", err)
+   }
+   var uid float64
+   found := false
+   for _, item := range v.([]interface{}) {
+      user := item.(map[string]interface{})
+      if user["name"].(string) == username {
+         uid = user["uid"].(float64)
+         found = true
+         break
+      }
+   }
+
+   return uid, found, nil
+
+}
+
+
 
 
 // Verify interface is implemented
@@ -204,6 +280,8 @@ func (redb *RedisEnterpriseDB) SecretValues() map[string]string {
 // to ensure the cluster is reachable
 func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
 
+   redb.Config = make(map[string]interface{})
+
    // Ensure we have the required fields
    for _, fieldName := range []string{"username", "password", "url"} {
 		raw, ok := req.Config[fieldName]
@@ -213,9 +291,20 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 		if _, ok := raw.(string); !ok {
 			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
 		}
+      redb.Config[fieldName] = raw
+   }
+   // Check optional fields
+   for _, fieldName := range []string{"database"} {
+		raw, ok := req.Config[fieldName]
+		if !ok {
+         continue
+		}
+		if _, ok := raw.(string); !ok {
+			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
+		}
+      redb.Config[fieldName] = raw
    }
 
-   redb.Config = req.Config
 
    // Verify the connection to the database if requested.
    if req.VerifyConnection {
@@ -225,6 +314,17 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
       if err != nil {
    		return dbplugin.InitializeResponse{}, fmt.Errorf("Could not verify connection to cluster: %s", err)
    	}
+      database, ok := req.Config["database"].(string)
+
+      if ok {
+         _, found, err := findDatabase(client,database)
+         if err != nil {
+            return dbplugin.InitializeResponse{}, fmt.Errorf("Could not verify connection to cluster: %s", err)
+         }
+         if !found {
+            return dbplugin.InitializeResponse{}, fmt.Errorf("Database does not exist: %s", database)
+         }
+      }
    }
 
 
@@ -256,11 +356,14 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
    err := json.Unmarshal([]byte(req.Statements.Commands[0]), &v)
 
    if err != nil {
-      return dbplugin.NewUserResponse{}, errors.New("Cannot parse JSON for db roles.")
+      return dbplugin.NewUserResponse{}, errors.New("Cannot parse JSON for db role.")
    }
 
    m := v.(map[string]interface{})
-   role := m["role"].(string)
+   role, ok := m["role"].(string)
+   if !ok {
+      return dbplugin.NewUserResponse{}, fmt.Errorf("Missing 'role' in creation statement for %s", req.UsernameConfig.RoleName)
+   }
    uuid, err := newUUID4()
    if err != nil {
       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot generate UUID: %s", err)
@@ -269,10 +372,135 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
    fmt.Printf("role: %s\n",role)
    fmt.Printf("username: %s\n",username)
 
-   create_user := map[string]interface{} {
+   database, hasDatabase := redb.Config["database"].(string)
+
+   client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string),"/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
+
+   var create_user map[string]interface{}
+
+   // get the role id
+   rid, role_management, found, err := findRole(client,role)
+   if err != nil {
+      return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
+   }
+   if !found {
+      return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot find role: %s", role)
+   }
+
+   if hasDatabase {
+
+      // If we have a database we need to:
+      // 1. Retrieve the DB and role ids
+      // 2. Find the role binding in roles_permissions in the DB definition
+      // 3. Create a new role for the user
+      // 4. Bind the new role to the same ACL in the database
+
+      // Get the database id
+      dbid, found, err := findDatabase(client,database)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get databases: %s", err)
+      }
+      if !found {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot find database: %s", database)
+      }
+
+      // Get the database information
+      var v interface{}
+      err = client.get(fmt.Sprintf("/v1/bdbs/%.0f",dbid),&v)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get database info: %s", err)
+      }
+
+      // Find the role binding to ACL
+      rolesPermissions, found := v.(map[string]interface{})["roles_permissions"].([]interface{})
+      if !found {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s",database)
+      }
+
+      // {
+      //    role_permission_serialized, err := json.Marshal(rolesPermissions)
+      //    if err != nil {
+      //       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal roles_permissions : %s", err)
+      //    }
+      //    fmt.Println("Before:")
+      //    fmt.Println(string(role_permission_serialized))
+      // }
+
+      found_acl := false
+      var aid interface {}
+      for _, value := range rolesPermissions {
+         binding := value.(map[string]interface{})
+         brole, found := binding["role_uid"]
+         if !found {
+            continue
+         }
+         if rid == brole {
+            aid, found = binding["redis_acl_uid"]
+            if !found {
+               continue
+            }
+            found_acl = true
+            break
+         }
+      }
+      if !found_acl {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s",database,role)
+      }
+
+      // Create a new role
+      vault_role := database + "-" + username
+      create_role := map[string]interface{} {
+         "name": vault_role,
+         "management": role_management,
+      }
+      create_role_body, err := json.Marshal(create_role)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal create role request: %s", err)
+      }
+
+      create_role_response_raw, err := client.post("/v1/roles",create_role_body)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot create role: %s", err)
+      }
+
+      var create_role_response interface{}
+      err = json.Unmarshal([]byte(create_role_response_raw), &create_role_response)
+   	if err != nil {
+   		return dbplugin.NewUserResponse{}, err
+   	}
+
+      // Add the new binding to the same ACL
+      new_role_id := create_role_response.(map[string]interface{})["uid"].(float64)
+
+      new_binding := map[string]interface{} {
+         "role_uid" : new_role_id,
+         "redis_acl_uid" : aid,
+      }
+      rolesPermissions = append(rolesPermissions,new_binding)
+
+      // Update the database
+      update_bdb_roles_permissions := map[string]interface{} {
+         "roles_permissions" : rolesPermissions,
+      }
+      update_bdb_roles_permissions_body, err := json.Marshal(update_bdb_roles_permissions)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
+      }
+      fmt.Println(string(update_bdb_roles_permissions_body))
+
+      error_response, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update database %s roles_permissions: %s\n%s", database, err,string(error_response))
+      }
+
+      rid = new_role_id
+
+   }
+
+   create_user = map[string]interface{} {
       "name": username,
       "password" : req.Password,
-      "role" : role,
+      "role_uids" : []float64{rid},
       "email_alerts": false,
       "auth_method": "regular",
    }
@@ -281,38 +509,12 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal create user request: %s", err)
    }
 
-   client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string),"/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
-
    _, err = client.post("/v1/users",create_user_body)
    if err != nil {
       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot create user: %s", err)
    }
 
    return dbplugin.NewUserResponse{Username: username}, nil
-}
-
-// findUser translates from a username to a cluster internal identifier (UID)
-func findUser(client SimpleRESTClient,username string) (string,bool,error) {
-   // TODO: This is horrible. There is no way to access the user by name so we have
-   // to get all the users and find the UID
-   var v interface{}
-   err := client.get("/v1/users",&v)
-   if err != nil {
-      return "", false, fmt.Errorf("Cannot get user list: %s", err)
-   }
-   var uid string
-   found := false
-   for _, item := range v.([]interface{}) {
-      user := item.(map[string]interface{})
-      if user["name"].(string) == username {
-         uid = fmt.Sprintf("%.0f",user["uid"])
-         found = true
-         break
-      }
-   }
-
-   return uid, found, nil
-
 }
 
 // UpdateUser changes a user's password
@@ -326,7 +528,7 @@ func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.Upda
    uid, found, err := findUser(client,req.Username)
 
    if err != nil {
-      return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot get user list: %s", err)
+      return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot get users: %s", err)
    }
    if !found {
       return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot find user: %s", req.Username)
@@ -341,8 +543,8 @@ func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.Upda
       return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot marshal change user password request: %s", err)
    }
 
-   fmt.Printf("Change password for user (%s,%s)\n",req.Username,uid)
-   _, err = client.put("/v1/users/"+uid,change_password_body)
+   fmt.Printf("Change password for user (%s,%.0f)\n",req.Username,uid)
+   _, err = client.put(fmt.Sprintf("/v1/users/%.0f",uid),change_password_body)
    if err != nil {
 		return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot change user password: %s", err)
 	}
@@ -362,12 +564,97 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
       return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find user: %s", req.Username)
    }
 
-   fmt.Printf("Delete user (%s,%s)\n",req.Username,uid)
-   err = client.delete("/v1/users/"+uid)
+   fmt.Printf("Delete user (%s,%.0f)\n",req.Username,uid)
+   err = client.delete(fmt.Sprintf("/v1/users/%.0f",uid))
    if err != nil {
-		return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot change user password: %s", err)
+		return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete user %s: %s",req.Username, err)
 	}
 
+   database, hasDatabase := redb.Config["database"].(string)
+
+   if hasDatabase {
+
+      // If we have a database we need to:
+      // 1. Retrieve the DB and role ids
+      // 2. Find the role binding in roles_permissions in the DB definition
+      // 4. Remove the role binding
+      // 3. Delete the role
+
+      role := database + "-" + req.Username
+
+      // Get the database id
+      dbid, found, err := findDatabase(client,database)
+      if err != nil {
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get databases: %s", err)
+      }
+      if !found {
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find database: %s", database)
+      }
+
+      // get the role id
+      rid, _, found, err := findRole(client,role)
+      if err != nil {
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
+      }
+      if !found {
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find role: %s", role)
+      }
+
+      // Get the database information
+      var v interface{}
+      err = client.get(fmt.Sprintf("/v1/bdbs/%.0f",dbid),&v)
+      if err != nil {
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get database info: %s", err)
+      }
+
+      // Find the role binding to ACL
+      rolesPermissions, found := v.(map[string]interface{})["roles_permissions"].([]interface{})
+      if !found {
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s",database)
+      }
+      found_acl := false
+      var position int
+      for index, value := range rolesPermissions {
+         binding := value.(map[string]interface{})
+         brole, found := binding["role_uid"]
+         if !found {
+            continue
+         }
+         if rid == brole {
+            position = index
+            found_acl = true
+            break
+         }
+      }
+      if found_acl {
+
+         // Remove the binding
+         // TODO: arrays!
+         rolesPermissions = append(rolesPermissions[:position], rolesPermissions[position+1:]...)
+
+         // Update the database
+         update_bdb_roles_permissions := map[string]interface{} {
+            "roles_permissions" : rolesPermissions,
+         }
+         update_bdb_roles_permissions_body, err := json.Marshal(update_bdb_roles_permissions)
+         if err != nil {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
+         }
+         fmt.Println(string(update_bdb_roles_permissions_body))
+
+         error_response, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
+         if err != nil {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot update database %s roles_permissions: %s\n%s", database, err,string(error_response))
+         }
+      }
+
+      // Delete the generated role
+      err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
+      if err != nil {
+   		return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete role (%s,%.0f): %s",role,rid,err)
+   	}
+
+   }
    return dbplugin.DeleteUserResponse{}, nil
 }
 
