@@ -2,8 +2,8 @@ package vault_plugin_database_redisenterprise
 
 import (
    "bytes"
-	"context"
-	"errors"
+   "context"
+   "errors"
    "fmt"
    "crypto/tls"
    "crypto/rand"
@@ -35,19 +35,24 @@ func newUUID4() (string, error) {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
 }
 
+// This REST client just handles the raw requests with JSON and nothing more.
 type SimpleRESTClient struct {
 	BaseURL  string
 	Username string
 	Password string
 }
 
+// The timeout for the REST client requests.
 const timeout = 60
 
-
+// getURL computes the URL path relative to the base URL and returns it as a string
 func (c *SimpleRESTClient) getURL(apiPath string) string {
 	return fmt.Sprintf("%s/%s", c.BaseURL, apiPath)
 }
 
+// request performs an HTTP(S) request, adding various options like authentication. The
+// response is return as a tuple that includes the body of the response message and
+// status code.
 func (c *SimpleRESTClient) request(req *http.Request) (responseBytes []byte, statusCode int, err error) {
 	req.SetBasicAuth(c.Username, c.Password)
 	req.Header.Add("Content-Type", "application/json;charset=utf-8")
@@ -69,17 +74,7 @@ func (c *SimpleRESTClient) request(req *http.Request) (responseBytes []byte, sta
 	return responseBytes, response.StatusCode, nil
 }
 
-func inList(a int, list []int) bool {
-	for _, b := range list {
-		if b == a {
-			return true
-		}
-	}
-	return false
-}
-
-
-
+// get performs an HTTP get and returns a JSON response message
 func (c *SimpleRESTClient) get(apiPath string,v interface{}) error {
 	url := c.getURL(apiPath)
 	request, err := http.NewRequest("GET", url, nil)
@@ -105,6 +100,7 @@ func (c *SimpleRESTClient) get(apiPath string,v interface{}) error {
 	return nil
 }
 
+// post performs an HTTP POST and returns a response message.
 func (c *SimpleRESTClient) post(apiPath string, body []byte) (response []byte, err error) {
 	url := c.getURL(apiPath)
 
@@ -124,6 +120,7 @@ func (c *SimpleRESTClient) post(apiPath string, body []byte) (response []byte, e
    return response, nil
 }
 
+// put performs an HTTP PUT and returns a response message
 func (c *SimpleRESTClient) put(apiPath string, body []byte) (response []byte, err error) {
 	url := c.getURL(apiPath)
 
@@ -143,6 +140,7 @@ func (c *SimpleRESTClient) put(apiPath string, body []byte) (response []byte, er
    return response, nil
 }
 
+// delete performs an HTTP DELETE and does not return a response message
 func (c *SimpleRESTClient) delete(apiPath string) error {
 	url := c.getURL(apiPath)
 	request, err := http.NewRequest("DELETE", url, nil)
@@ -167,6 +165,8 @@ func (c *SimpleRESTClient) delete(apiPath string) error {
 // Verify interface is implemented
 var _ dbplugin.Database = (*RedisEnterpriseDB)(nil)
 
+// Our database datastructure only holds the credentials. We have no connection
+// to maintain as we're just manipulating the cluster via the REST API.
 type RedisEnterpriseDB struct {
    Config map[string] interface{}
 }
@@ -181,6 +181,7 @@ func new() *RedisEnterpriseDB {
    return &RedisEnterpriseDB{}
 }
 
+// SecretVaults returns the configuration information with the password masked
 func (redb *RedisEnterpriseDB) SecretValues() map[string]string {
 
    // mask secret values in the configuration
@@ -199,7 +200,11 @@ func (redb *RedisEnterpriseDB) SecretValues() map[string]string {
 	return replacements
 }
 
+// Initialize copies the configuration information and does a GET on /v1/cluster
+// to ensure the cluster is reachable
 func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
+
+   // Ensure we have the required fields
    for _, fieldName := range []string{"username", "password", "url"} {
 		raw, ok := req.Config[fieldName]
 		if !ok {
@@ -212,6 +217,7 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 
    redb.Config = req.Config
 
+   // Verify the connection to the database if requested.
    if req.VerifyConnection {
       client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string),"/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
       var v interface{}
@@ -229,6 +235,12 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
    return response, nil
 }
 
+// NewUser creates a new user and authentication credentials in the cluster.
+// The statement is required to be JSON with the structure:
+// {
+//    "role" : "role_name"
+// }
+// The role name is must exist the cluster before the user can be created.
 func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error)  {
    fmt.Printf("display: %s\n",req.UsernameConfig.DisplayName)
    fmt.Printf("role: %s\n",req.UsernameConfig.RoleName)
@@ -279,6 +291,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
    return dbplugin.NewUserResponse{Username: username}, nil
 }
 
+// findUser translates from a username to a cluster internal identifier (UID)
 func findUser(client SimpleRESTClient,username string) (string,bool,error) {
    // TODO: This is horrible. There is no way to access the user by name so we have
    // to get all the users and find the UID
@@ -302,6 +315,7 @@ func findUser(client SimpleRESTClient,username string) (string,bool,error) {
 
 }
 
+// UpdateUser changes a user's password
 func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error)  {
    if req.Password == nil {
       return dbplugin.UpdateUserResponse{}, nil
@@ -335,6 +349,7 @@ func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.Upda
    return dbplugin.UpdateUserResponse{}, nil
 }
 
+// DeleteUser removes a user from the cluster entirely
 func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequest) (dbplugin.DeleteUserResponse, error) {
    client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string),"/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
 
