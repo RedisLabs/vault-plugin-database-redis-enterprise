@@ -160,27 +160,54 @@ func (c *SimpleRESTClient) delete(apiPath string) error {
 	return nil
 }
 
-// findDatabase translates from a database name to a cluster internal identifier (UID)
-func findDatabase(client SimpleRESTClient,databaseName string) (float64,bool,error) {
+
+// find an item by name at the request path
+func findItem(client SimpleRESTClient,path string,nameProperty string, idProperty string,name string) (float64,bool,error) {
    // TODO: This is horrible. There is no way to access the database by name so we have
    // to get all the databases and find the UID
    var v interface{}
-   err := client.get("/v1/bdbs",&v)
+   err := client.get(path,&v)
    if err != nil {
-      return 0, false, fmt.Errorf("Cannot get database list: %s", err)
+      return 0, false, fmt.Errorf("Cannot get list at %s: %s", path, err)
    }
    var uid float64
    found := false
    for _, item := range v.([]interface{}) {
-      db := item.(map[string]interface{})
-      if db["name"].(string) == databaseName {
-         uid = db["uid"].(float64)
+      m := item.(map[string]interface{})
+      if m[nameProperty].(string) == name {
+         uid = m[idProperty].(float64)
          found = true
          break
       }
    }
 
    return uid, found, nil
+
+}
+
+// findDatabase translates from a database name to a cluster internal identifier (UID)
+func findDatabase(client SimpleRESTClient,databaseName string) (float64,bool,error) {
+
+   return findItem(client,"/v1/bdbs","name","uid",databaseName)
+   // TODO: This is horrible. There is no way to access the database by name so we have
+   // to get all the databases and find the UID
+   // var v interface{}
+   // err := client.get("/v1/bdbs",&v)
+   // if err != nil {
+   //    return 0, false, fmt.Errorf("Cannot get database list: %s", err)
+   // }
+   // var uid float64
+   // found := false
+   // for _, item := range v.([]interface{}) {
+   //    db := item.(map[string]interface{})
+   //    if db["name"].(string) == databaseName {
+   //       uid = db["uid"].(float64)
+   //       found = true
+   //       break
+   //    }
+   // }
+   //
+   // return uid, found, nil
 
 }
 
@@ -213,28 +240,33 @@ func findRole(client SimpleRESTClient,roleName string) (float64,string,bool,erro
 
 // findUser translates from a username to a cluster internal identifier (UID)
 func findUser(client SimpleRESTClient,username string) (float64,bool,error) {
+   return findItem(client,"/v1/users","name","uid",username)
    // TODO: This is horrible. There is no way to access the user by name so we have
    // to get all the users and find the UID
-   var v interface{}
-   err := client.get("/v1/users",&v)
-   if err != nil {
-      return 0, false, fmt.Errorf("Cannot get user list: %s", err)
-   }
-   var uid float64
-   found := false
-   for _, item := range v.([]interface{}) {
-      user := item.(map[string]interface{})
-      if user["name"].(string) == username {
-         uid = user["uid"].(float64)
-         found = true
-         break
-      }
-   }
-
-   return uid, found, nil
+   // var v interface{}
+   // err := client.get("/v1/users",&v)
+   // if err != nil {
+   //    return 0, false, fmt.Errorf("Cannot get user list: %s", err)
+   // }
+   // var uid float64
+   // found := false
+   // for _, item := range v.([]interface{}) {
+   //    user := item.(map[string]interface{})
+   //    if user["name"].(string) == username {
+   //       uid = user["uid"].(float64)
+   //       found = true
+   //       break
+   //    }
+   // }
+   //
+   // return uid, found, nil
 
 }
 
+// findUser translates from a username to a cluster internal identifier (UID)
+func findACL(client SimpleRESTClient,name string) (float64,bool,error) {
+   return findItem(client,"/v1/redis_acls","name","uid",name)
+}
 
 
 
@@ -486,7 +518,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
       if err != nil {
          return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
       }
-      fmt.Println(string(update_bdb_roles_permissions_body))
+      //fmt.Println(string(update_bdb_roles_permissions_body))
 
       error_response, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
       if err != nil {
@@ -640,7 +672,7 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
          if err != nil {
             return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
          }
-         fmt.Println(string(update_bdb_roles_permissions_body))
+         //fmt.Println(string(update_bdb_roles_permissions_body))
 
          error_response, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
          if err != nil {
