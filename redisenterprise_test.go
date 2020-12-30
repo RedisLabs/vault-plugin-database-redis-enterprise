@@ -19,8 +19,9 @@ func TestPlugin(t *testing.T) {
 
    t.Run("Initialize", func(t *testing.T) { testRedisEnterpriseDBInitialize(t,url,username,password,"") })
    t.Run("Initialize - database", func(t *testing.T) { testRedisEnterpriseDBInitialize(t,url,username,password,"mydb") })
-   t.Run("NewUser", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"") })
-   t.Run("NewUser - database", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"mydb") })
+   t.Run("NewUser", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"",false) })
+   t.Run("NewUser - database", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"mydb",false) })
+   t.Run("NewUser - acl", func(t *testing.T) { testRedisEnterpriseNewUser(t,url,username,password,"mydb",true) })
    t.Run("UpdateUser change password", func(t *testing.T) { testRedisEnterpriseUpdateUserChangePassword(t,url,username,password) })
    t.Run("DeleteUser", func(t *testing.T) { testRedisEnterpriseDeleteUser(t,url,username,password,"") })
    t.Run("DeleteUser - database", func(t *testing.T) { testRedisEnterpriseDeleteUser(t,url,username,password,"mydb") })
@@ -63,7 +64,7 @@ func testRedisEnterpriseDBInitialize(t *testing.T, url string, username string, 
 
 }
 
-func testRedisEnterpriseNewUser(t *testing.T, url string, username string, password string,database string) {
+func testRedisEnterpriseNewUser(t *testing.T, url string, username string, password string,database string,useACL bool) {
    t.Log("Testing new user")
 
    db := initDatabase(t,url,username,password,database)
@@ -79,6 +80,10 @@ func testRedisEnterpriseNewUser(t *testing.T, url string, username string, passw
 		Password:   "testing",
 		Expiration: time.Now().Add(time.Minute),
 	}
+
+   if useACL {
+      createReq.Statements.Commands = []string{`{"acl":"Not Dangerous"}`}
+   }
 
    dbtesting.AssertNewUser(t, db, createReq)
 

@@ -121,23 +121,23 @@ func (c *SimpleRESTClient) post(apiPath string, body []byte) (response []byte, e
 }
 
 // put performs an HTTP PUT and returns a response message
-func (c *SimpleRESTClient) put(apiPath string, body []byte) (response []byte, err error) {
+func (c *SimpleRESTClient) put(apiPath string, body []byte) (response []byte, code int, err error) {
 	url := c.getURL(apiPath)
 
 	request, err := http.NewRequest("PUT", url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	response, statusCode, err := c.request(request)
 	if err != nil {
-		return nil, err
+		return nil, statusCode, err
 	}
 
 	if statusCode != http.StatusOK {
-      return response, fmt.Errorf("post on %s, status: %d", url, statusCode)
+      return response, statusCode, fmt.Errorf("post on %s, status: %d", url, statusCode)
 	}
-   return response, nil
+   return response, statusCode, nil
 }
 
 // delete performs an HTTP DELETE and does not return a response message
@@ -367,6 +367,39 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
    return response, nil
 }
 
+const updateRolePermissionsRetryLimit = 30
+
+func updateRolePermissions(client SimpleRESTClient,dbid float64, rolesPermissions []interface{}) error {
+   // Update the database
+   update_bdb_roles_permissions := map[string]interface{} {
+      "roles_permissions" : rolesPermissions,
+   }
+   update_bdb_roles_permissions_body, err := json.Marshal(update_bdb_roles_permissions)
+   if err != nil {
+      return fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
+   }
+   //fmt.Println(string(update_bdb_roles_permissions_body))
+
+   success := false
+   for i:=0; !success && i<updateRolePermissionsRetryLimit; i++ {
+      error_response, statusCode, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
+      if statusCode == http.StatusConflict {
+         time.Sleep(500 * time.Millisecond)
+      } else if err != nil {
+         return fmt.Errorf("Cannot update database %.0f roles_permissions: %s\n%s", dbid, err, string(error_response))
+      } else {
+         success = true
+      }
+   }
+
+   if !success {
+      return fmt.Errorf("Cannot update database %.0f roles_permissions - too many retries after conflicts (409).",dbid)
+   }
+
+   return nil
+
+}
+
 // NewUser creates a new user and authentication credentials in the cluster.
 // The statement is required to be JSON with the structure:
 // {
@@ -392,31 +425,61 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
    }
 
    m := v.(map[string]interface{})
-   role, ok := m["role"].(string)
-   if !ok {
-      return dbplugin.NewUserResponse{}, fmt.Errorf("Missing 'role' in creation statement for %s", req.UsernameConfig.RoleName)
+   role, hasRole := m["role"].(string)
+   acl, hasACL := m["acl"].(string)
+   if !hasRole && !hasACL {
+      return dbplugin.NewUserResponse{}, fmt.Errorf("No 'role' or 'acl' in creation statement for %s", req.UsernameConfig.RoleName)
    }
    uuid, err := newUUID4()
    if err != nil {
       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot generate UUID: %s", err)
    }
    username := "vault-" + req.UsernameConfig.RoleName + "-" + uuid
-   fmt.Printf("role: %s\n",role)
+   if hasRole {
+      fmt.Printf("role: %s\n",role)
+   }
+   if hasACL {
+      fmt.Printf("acl: %s\n",acl)
+   }
    fmt.Printf("username: %s\n",username)
 
    database, hasDatabase := redb.Config["database"].(string)
+
+   if !hasDatabase && hasACL {
+      return dbplugin.NewUserResponse{}, fmt.Errorf("ACL cannot be used when the database has not been specified for %s", req.UsernameConfig.RoleName)
+   }
 
    client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string),"/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
 
    var create_user map[string]interface{}
 
-   // get the role id
-   rid, role_management, found, err := findRole(client,role)
-   if err != nil {
-      return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
+   var rid float64
+   var role_management string
+   var aid float64
+
+   if hasRole {
+      // get the role id
+      var found bool
+      rid, role_management, found, err = findRole(client,role)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
+      }
+      if !found {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot find role: %s", role)
+      }
    }
-   if !found {
-      return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot find role: %s", role)
+
+   if hasACL {
+      // get the ACL id
+      var found bool
+      aid, found, err = findACL(client,acl)
+      if err != nil {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get acls: %s", err)
+      }
+      if !found {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot find acl: %s", acl)
+      }
+      role_management = "db_member"
    }
 
    if hasDatabase {
@@ -458,25 +521,26 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
       //    fmt.Println(string(role_permission_serialized))
       // }
 
-      found_acl := false
-      var aid interface {}
-      for _, value := range rolesPermissions {
-         binding := value.(map[string]interface{})
-         brole, found := binding["role_uid"]
-         if !found {
-            continue
-         }
-         if rid == brole {
-            aid, found = binding["redis_acl_uid"]
+      if !hasACL {
+         found_acl := false
+         for _, value := range rolesPermissions {
+            binding := value.(map[string]interface{})
+            brole, found := binding["role_uid"]
             if !found {
                continue
             }
-            found_acl = true
-            break
+            if rid == brole {
+               aid, found = binding["redis_acl_uid"].(float64)
+               if !found {
+                  continue
+               }
+               found_acl = true
+               break
+            }
          }
-      }
-      if !found_acl {
-         return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s",database,role)
+         if !found_acl {
+            return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s",database,role)
+         }
       }
 
       // Create a new role
@@ -511,18 +575,9 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
       rolesPermissions = append(rolesPermissions,new_binding)
 
       // Update the database
-      update_bdb_roles_permissions := map[string]interface{} {
-         "roles_permissions" : rolesPermissions,
-      }
-      update_bdb_roles_permissions_body, err := json.Marshal(update_bdb_roles_permissions)
+      err = updateRolePermissions(client,dbid,rolesPermissions)
       if err != nil {
-         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
-      }
-      //fmt.Println(string(update_bdb_roles_permissions_body))
-
-      error_response, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
-      if err != nil {
-         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update database %s roles_permissions: %s\n%s", database, err,string(error_response))
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update role_permissions in database %s: %s", database, err)
       }
 
       rid = new_role_id
@@ -576,7 +631,7 @@ func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.Upda
    }
 
    fmt.Printf("Change password for user (%s,%.0f)\n",req.Username,uid)
-   _, err = client.put(fmt.Sprintf("/v1/users/%.0f",uid),change_password_body)
+   _, _, err = client.put(fmt.Sprintf("/v1/users/%.0f",uid),change_password_body)
    if err != nil {
 		return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot change user password: %s", err)
 	}
@@ -593,7 +648,9 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
       return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get user list: %s", err)
    }
    if !found {
-      return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find user: %s", req.Username)
+      // If the user is not found, they may have been deleted manually. We'll assume
+      // this is okay and return successfully.
+      return dbplugin.DeleteUserResponse{}, nil
    }
 
    fmt.Printf("Delete user (%s,%.0f)\n",req.Username,uid)
@@ -661,23 +718,17 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
       if found_acl {
 
          // Remove the binding
-         // TODO: arrays!
          rolesPermissions = append(rolesPermissions[:position], rolesPermissions[position+1:]...)
 
          // Update the database
-         update_bdb_roles_permissions := map[string]interface{} {
-            "roles_permissions" : rolesPermissions,
-         }
-         update_bdb_roles_permissions_body, err := json.Marshal(update_bdb_roles_permissions)
+         err = updateRolePermissions(client,dbid,rolesPermissions)
          if err != nil {
-            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
-         }
-         //fmt.Println(string(update_bdb_roles_permissions_body))
 
-         error_response, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
-         if err != nil {
-            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot update database %s roles_permissions: %s\n%s", database, err,string(error_response))
+            // Attempt to delete the generated role - we know this may fail
+            err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("User deleted but role and role binding cannot be removed - cannot update role_permissions in database %s: %s", database, err)
          }
+
       }
 
       // Delete the generated role
