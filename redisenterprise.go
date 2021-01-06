@@ -23,23 +23,23 @@ const redisEnterpriseTypeName = "redisenterprise"
 // newUUID generates a random UUID according to RFC 4122
 // https://play.golang.org/p/4FkNSiUDMg
 func newUUID4() (string, error) {
-	uuid := make([]byte, 16)
-	n, err := io.ReadFull(rand.Reader, uuid)
-	if n != len(uuid) || err != nil {
-		return "", err
-	}
-	// variant bits; see section 4.1.1
-	uuid[8] = uuid[8]&^0xc0 | 0x80
-	// version 4 (pseudo-random); see section 4.1.3
-	uuid[6] = uuid[6]&^0xf0 | 0x40
-	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
+   uuid := make([]byte, 16)
+   n, err := io.ReadFull(rand.Reader, uuid)
+   if n != len(uuid) || err != nil {
+      return "", err
+   }
+   // variant bits; see section 4.1.1
+   uuid[8] = uuid[8]&^0xc0 | 0x80
+   // version 4 (pseudo-random); see section 4.1.3
+   uuid[6] = uuid[6]&^0xf0 | 0x40
+   return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
 }
 
 // This REST client just handles the raw requests with JSON and nothing more.
 type SimpleRESTClient struct {
-	BaseURL  string
-	Username string
-	Password string
+   BaseURL  string
+   Username string
+   Password string
 }
 
 // The timeout for the REST client requests.
@@ -47,117 +47,117 @@ const timeout = 60
 
 // getURL computes the URL path relative to the base URL and returns it as a string
 func (c *SimpleRESTClient) getURL(apiPath string) string {
-	return fmt.Sprintf("%s/%s", c.BaseURL, apiPath)
+   return fmt.Sprintf("%s/%s", c.BaseURL, apiPath)
 }
 
 // request performs an HTTP(S) request, adding various options like authentication. The
 // response is return as a tuple that includes the body of the response message and
 // status code.
 func (c *SimpleRESTClient) request(req *http.Request) (responseBytes []byte, statusCode int, err error) {
-	req.SetBasicAuth(c.Username, c.Password)
-	req.Header.Add("Content-Type", "application/json;charset=utf-8")
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	httpClient := http.Client{Timeout: timeout * time.Second, Transport: tr}
+   req.SetBasicAuth(c.Username, c.Password)
+   req.Header.Add("Content-Type", "application/json;charset=utf-8")
+   tr := &http.Transport{
+      TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+   }
+   httpClient := http.Client{Timeout: timeout * time.Second, Transport: tr}
 
-	response, err := httpClient.Do(req)
-	if err != nil {
-		return nil, -1, err
-	}
+   response, err := httpClient.Do(req)
+   if err != nil {
+      return nil, -1, err
+   }
 
-	responseBytes, err = ioutil.ReadAll(response.Body)
-	defer response.Body.Close()
-	if err != nil {
-		return nil, -1, err
-	}
-	return responseBytes, response.StatusCode, nil
+   responseBytes, err = ioutil.ReadAll(response.Body)
+   defer response.Body.Close()
+   if err != nil {
+      return nil, -1, err
+   }
+   return responseBytes, response.StatusCode, nil
 }
 
 // get performs an HTTP get and returns a JSON response message
 func (c *SimpleRESTClient) get(apiPath string,v interface{}) error {
-	url := c.getURL(apiPath)
-	request, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return err
-	}
+   url := c.getURL(apiPath)
+   request, err := http.NewRequest("GET", url, nil)
+   if err != nil {
+      return err
+   }
 
-	res, statusCode, err := c.request(request)
-	if err != nil {
-		return err
-	}
+   res, statusCode, err := c.request(request)
+   if err != nil {
+      return err
+   }
 
-	if statusCode != http.StatusOK {
-		return fmt.Errorf("Get on %s, status: %d", url, statusCode)
-	}
+   if statusCode != http.StatusOK {
+      return fmt.Errorf("Get on %s, status: %d", url, statusCode)
+   }
 
 
-	err = json.Unmarshal([]byte(res), &v)
-	if err != nil {
-		return err
-	}
+   err = json.Unmarshal([]byte(res), &v)
+   if err != nil {
+      return err
+   }
 
-	return nil
+   return nil
 }
 
 // post performs an HTTP POST and returns a response message.
 func (c *SimpleRESTClient) post(apiPath string, body []byte) (response []byte, err error) {
-	url := c.getURL(apiPath)
+   url := c.getURL(apiPath)
 
-	request, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, err
-	}
+   request, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+   if err != nil {
+      return nil, err
+   }
 
-	response, statusCode, err := c.request(request)
-	if err != nil {
-		return nil, err
-	}
+   response, statusCode, err := c.request(request)
+   if err != nil {
+      return nil, err
+   }
 
-	if statusCode != http.StatusOK {
+   if statusCode != http.StatusOK {
       return response, fmt.Errorf("post on %s, status: %d", url, statusCode)
-	}
+   }
    return response, nil
 }
 
 // put performs an HTTP PUT and returns a response message
 func (c *SimpleRESTClient) put(apiPath string, body []byte) (response []byte, code int, err error) {
-	url := c.getURL(apiPath)
+   url := c.getURL(apiPath)
 
-	request, err := http.NewRequest("PUT", url, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, 0, err
-	}
+   request, err := http.NewRequest("PUT", url, bytes.NewBuffer(body))
+   if err != nil {
+      return nil, 0, err
+   }
 
-	response, statusCode, err := c.request(request)
-	if err != nil {
-		return nil, statusCode, err
-	}
+   response, statusCode, err := c.request(request)
+   if err != nil {
+      return nil, statusCode, err
+   }
 
-	if statusCode != http.StatusOK {
+   if statusCode != http.StatusOK {
       return response, statusCode, fmt.Errorf("post on %s, status: %d", url, statusCode)
-	}
+   }
    return response, statusCode, nil
 }
 
 // delete performs an HTTP DELETE and does not return a response message
 func (c *SimpleRESTClient) delete(apiPath string) error {
-	url := c.getURL(apiPath)
-	request, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return err
-	}
+   url := c.getURL(apiPath)
+   request, err := http.NewRequest("DELETE", url, nil)
+   if err != nil {
+      return err
+   }
 
-	_, statusCode, err := c.request(request)
-	if err != nil {
-		return err
-	}
+   _, statusCode, err := c.request(request)
+   if err != nil {
+      return err
+   }
 
-	if statusCode != http.StatusOK {
-		return fmt.Errorf("Get on %s, status: %d", url, statusCode)
-	}
+   if statusCode != http.StatusOK {
+      return fmt.Errorf("Get on %s, status: %d", url, statusCode)
+   }
 
-	return nil
+   return nil
 }
 
 
@@ -294,18 +294,18 @@ func (redb *RedisEnterpriseDB) SecretValues() map[string]string {
 
    // mask secret values in the configuration
    replacements := make(map[string]string)
-	for _, secretName := range []string{"password"} {
-		vIfc, found := redb.Config[secretName]
-		if !found {
-			continue
-		}
-		secretVal, ok := vIfc.(string)
-		if !ok {
-			continue
-		}
-		replacements[secretVal] = "[" + secretName + "]"
-	}
-	return replacements
+   for _, secretName := range []string{"password"} {
+      vIfc, found := redb.Config[secretName]
+      if !found {
+         continue
+      }
+      secretVal, ok := vIfc.(string)
+      if !ok {
+         continue
+      }
+      replacements[secretVal] = "[" + secretName + "]"
+   }
+   return replacements
 }
 
 // Initialize copies the configuration information and does a GET on /v1/cluster
@@ -316,24 +316,24 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 
    // Ensure we have the required fields
    for _, fieldName := range []string{"username", "password", "url"} {
-		raw, ok := req.Config[fieldName]
-		if !ok {
-			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q is required.`, fieldName)
-		}
-		if _, ok := raw.(string); !ok {
-			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
-		}
+      raw, ok := req.Config[fieldName]
+      if !ok {
+         return dbplugin.InitializeResponse{}, fmt.Errorf(`%q is required.`, fieldName)
+      }
+      if _, ok := raw.(string); !ok {
+         return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
+      }
       redb.Config[fieldName] = raw
    }
    // Check optional fields
    for _, fieldName := range []string{"database"} {
-		raw, ok := req.Config[fieldName]
-		if !ok {
+      raw, ok := req.Config[fieldName]
+      if !ok {
          continue
-		}
-		if _, ok := raw.(string); !ok {
-			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
-		}
+      }
+      if _, ok := raw.(string); !ok {
+         return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
+      }
       redb.Config[fieldName] = raw
    }
 
@@ -344,8 +344,8 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
       var v interface{}
       err := client.get("/v1/cluster",v)
       if err != nil {
-   		return dbplugin.InitializeResponse{}, fmt.Errorf("Could not verify connection to cluster: %s", err)
-   	}
+         return dbplugin.InitializeResponse{}, fmt.Errorf("Could not verify connection to cluster: %s", err)
+      }
       database, ok := req.Config["database"].(string)
 
       if ok {
@@ -361,8 +361,8 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 
 
    response := dbplugin.InitializeResponse{
-		Config: req.Config,
-	}
+      Config: req.Config,
+   }
 
    return response, nil
 }
@@ -561,9 +561,9 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 
       var create_role_response interface{}
       err = json.Unmarshal([]byte(create_role_response_raw), &create_role_response)
-   	if err != nil {
-   		return dbplugin.NewUserResponse{}, err
-   	}
+      if err != nil {
+         return dbplugin.NewUserResponse{}, err
+      }
 
       // Add the new binding to the same ACL
       new_role_id := create_role_response.(map[string]interface{})["uid"].(float64)
@@ -633,8 +633,8 @@ func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.Upda
    fmt.Printf("Change password for user (%s,%.0f)\n",req.Username,uid)
    _, _, err = client.put(fmt.Sprintf("/v1/users/%.0f",uid),change_password_body)
    if err != nil {
-		return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot change user password: %s", err)
-	}
+      return dbplugin.UpdateUserResponse{}, fmt.Errorf("Cannot change user password: %s", err)
+   }
    return dbplugin.UpdateUserResponse{}, nil
 }
 
@@ -656,8 +656,8 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
    fmt.Printf("Delete user (%s,%.0f)\n",req.Username,uid)
    err = client.delete(fmt.Sprintf("/v1/users/%.0f",uid))
    if err != nil {
-		return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete user %s: %s",req.Username, err)
-	}
+      return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete user %s: %s",req.Username, err)
+   }
 
    database, hasDatabase := redb.Config["database"].(string)
 
@@ -734,8 +734,8 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
       // Delete the generated role
       err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
       if err != nil {
-   		return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete role (%s,%.0f): %s",role,rid,err)
-   	}
+         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete role (%s,%.0f): %s",role,rid,err)
+      }
 
    }
    return dbplugin.DeleteUserResponse{}, nil
