@@ -15,7 +15,6 @@ import (
    "strings"
 
    dbplugin "github.com/hashicorp/vault/sdk/database/dbplugin/v5"
-   //recClient "github.com/RedisLabs/vault-plugin-database-redisenterprise/pkg/redis-enterprise-client"
 )
 
 const redisEnterpriseTypeName = "redisenterprise"
@@ -187,28 +186,7 @@ func findItem(client SimpleRESTClient,path string,nameProperty string, idPropert
 
 // findDatabase translates from a database name to a cluster internal identifier (UID)
 func findDatabase(client SimpleRESTClient,databaseName string) (float64,bool,error) {
-
    return findItem(client,"/v1/bdbs","name","uid",databaseName)
-   // TODO: This is horrible. There is no way to access the database by name so we have
-   // to get all the databases and find the UID
-   // var v interface{}
-   // err := client.get("/v1/bdbs",&v)
-   // if err != nil {
-   //    return 0, false, fmt.Errorf("Cannot get database list: %s", err)
-   // }
-   // var uid float64
-   // found := false
-   // for _, item := range v.([]interface{}) {
-   //    db := item.(map[string]interface{})
-   //    if db["name"].(string) == databaseName {
-   //       uid = db["uid"].(float64)
-   //       found = true
-   //       break
-   //    }
-   // }
-   //
-   // return uid, found, nil
-
 }
 
 // findDatabase translates from a database name to a cluster internal identifier (UID)
@@ -241,34 +219,12 @@ func findRole(client SimpleRESTClient,roleName string) (float64,string,bool,erro
 // findUser translates from a username to a cluster internal identifier (UID)
 func findUser(client SimpleRESTClient,username string) (float64,bool,error) {
    return findItem(client,"/v1/users","name","uid",username)
-   // TODO: This is horrible. There is no way to access the user by name so we have
-   // to get all the users and find the UID
-   // var v interface{}
-   // err := client.get("/v1/users",&v)
-   // if err != nil {
-   //    return 0, false, fmt.Errorf("Cannot get user list: %s", err)
-   // }
-   // var uid float64
-   // found := false
-   // for _, item := range v.([]interface{}) {
-   //    user := item.(map[string]interface{})
-   //    if user["name"].(string) == username {
-   //       uid = user["uid"].(float64)
-   //       found = true
-   //       break
-   //    }
-   // }
-   //
-   // return uid, found, nil
-
 }
 
 // findUser translates from a username to a cluster internal identifier (UID)
 func findACL(client SimpleRESTClient,name string) (float64,bool,error) {
    return findItem(client,"/v1/redis_acls","name","uid",name)
 }
-
-
 
 // Verify interface is implemented
 var _ dbplugin.Database = (*RedisEnterpriseDB)(nil)
@@ -369,6 +325,7 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 
 const updateRolePermissionsRetryLimit = 30
 
+// Updates the roles_permissions on a bdb with a retry loop.
 func updateRolePermissions(client SimpleRESTClient,dbid float64, rolesPermissions []interface{}) error {
    // Update the database
    update_bdb_roles_permissions := map[string]interface{} {
@@ -381,8 +338,11 @@ func updateRolePermissions(client SimpleRESTClient,dbid float64, rolesPermission
    //fmt.Println(string(update_bdb_roles_permissions_body))
 
    success := false
+   // Retry loop - up to 500ms * limit
    for i:=0; !success && i<updateRolePermissionsRetryLimit; i++ {
       error_response, statusCode, err := client.put(fmt.Sprintf("/v1/bdbs/%.0f",dbid),update_bdb_roles_permissions_body)
+      // An HTTP 409 can be return if the database is busy (e.g., with a previous
+      // configuration change). So, we pause and retry.
       if statusCode == http.StatusConflict {
          time.Sleep(500 * time.Millisecond)
       } else if err != nil {
@@ -406,6 +366,15 @@ func updateRolePermissions(client SimpleRESTClient,dbid float64, rolesPermission
 //    "role" : "role_name"
 // }
 // The role name is must exist the cluster before the user can be created.
+// If a database configuration exists, the role must be bound to an ACL in the database.
+//
+// or
+// {
+//    "acl" : "acl_name"
+// }
+// The acl name is must exist the cluster before the user can be created.
+// The acl option can only be used with a database.
+
 func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error)  {
    fmt.Printf("display: %s\n",req.UsernameConfig.DisplayName)
    fmt.Printf("role: %s\n",req.UsernameConfig.RoleName)
@@ -506,21 +475,13 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
          return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get database info: %s", err)
       }
 
-      // Find the role binding to ACL
+      // Find the role bindings to ACL
       rolesPermissions, found := v.(map[string]interface{})["roles_permissions"].([]interface{})
       if !found {
          return dbplugin.NewUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s",database)
       }
 
-      // {
-      //    role_permission_serialized, err := json.Marshal(rolesPermissions)
-      //    if err != nil {
-      //       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal roles_permissions : %s", err)
-      //    }
-      //    fmt.Println("Before:")
-      //    fmt.Println(string(role_permission_serialized))
-      // }
-
+      // If there is no referenced ACL, find the ACL binding in the roles_permissions of the BDB
       if !hasACL {
          found_acl := false
          for _, value := range rolesPermissions {
@@ -584,6 +545,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 
    }
 
+   // Finally, create the user with the role
    create_user = map[string]interface{} {
       "name": username,
       "password" : req.Password,
@@ -600,6 +562,8 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
    if err != nil {
       return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot create user: %s", err)
    }
+
+   // TODO: we need to cleanup created roles if the user can't be created
 
    return dbplugin.NewUserResponse{Username: username}, nil
 }
