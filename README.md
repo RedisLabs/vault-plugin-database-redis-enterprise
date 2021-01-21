@@ -99,33 +99,46 @@ vault write database/config/redis-mydb plugin_name="redisenterprise-database-plu
 A user is associated with a role binding in the database. You must either
 reference a currently configured role binding or a Redis ACL.
 
+The preferred and simplest method is to use a role that is already bound
+in your database. This role binding can be defined via the K8s database
+controller or via the administrative user interface. This avoids having
+the plugin manage database role bindings that may conflict with other
+operations management (e.g., the K8s database controller).
+
 If you want to use a role that is bound in your database:
 
 ```
 vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"role\":\"DB Member\"}" default_ttl=3m max_ttl=5m
 ```
 
-If you want to use a Redis ACL directly:
+This will create a user using the reference role. If the role is not bound in
+the database to an ACL, it is an error. If you also specify an ACL, the plugin
+will assert that the ACL specified and the binding are the same. For example:
+
+```
+vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"role\":\"DB Member\",\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
+```
+
+It is an error if the role does not have the same binding to the same ACL in the database.
+
+If you specify only a Redis ACL, a role and role binding in the database
+will be generated:
 
 ```
 vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
 ```
 
-The user credentials returned will be bound to a new role assigned assigned
-to a new user where that role is bound the requested ACL in the requested
-database.
+In this configuration, the user credentials returned will be bound to a new role
+bound to the requested ACL in the database.
 
-When using the role, an administrator can model the capabilities of the user
-with the reference role but a new role is always created with the same ACLs
-as the referenced role. This allows static users to have the same capabilities
-as the dynamic users without duplicating the role to ACL definition.
+In both situations, a new user is generated and associated with the role used or
+generated.
 
-In either case, as the dynamic role that is created and bound in the database
-is only assigned to a dynamically created user that is managed by the vault
-plugin, that particular access is not available to other users.
+A role binding in a database is never generated when using an existing role as this would
+allow escalation of privileges in the database for others users with the same role.
 
 Once the Vault role is configured, a workload can create a new credential by just
-reading the role:
+reading the Vault role:
 
 ```
 vault read database/creds/mydb
