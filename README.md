@@ -222,7 +222,7 @@ the database to an ACL, it is an error. If you also specify an ACL, the plugin
 will assert that the ACL specified and the binding are the same. For example:
 
 ```
-vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"role\":\"DB Member\",\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
+vault write database/roles/mydb-role-acl db_name=redis-mydb creation_statements="{\"role\":\"DB Member\",\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
 ```
 
 It is an error if the role does not have the same binding to the same ACL in the database.
@@ -231,7 +231,7 @@ If you specify only a Redis ACL, a role and role binding in the database
 will be generated:
 
 ```
-vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
+vault write database/roles/mydb-acl db_name=redis-mydb creation_statements="{\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
 ```
 
 In this configuration, the user credentials returned will be bound to a new role
@@ -242,39 +242,6 @@ generated.
 
 A role binding in a database is never generated when using an existing role as this would
 allow escalation of privileges in the database for others users with the same role.
-
-Once the Vault role is configured, a workload can create a new credential by just
-reading the Vault role:
-
-```
-vault read database/creds/mydb
-```
-
-The result is similar to:
-
-```
-Key                Value
----                -----
-lease_id           database/creds/mydb/zgVJfei8P0Tw7cKX3g9Hx89l
-lease_duration     3m
-lease_renewable    true
-password           ZWI87ddZMPR7hR8U-3sJ
-username           vault-test-69dea4c9-4da8-4e34-bf93-eebf60095766
-```
-
-A workload can renew the password before the lease expires up to the maximum expiry:
-
-```
-vault lease renew database/creds/test/zgVJfei8P0Tw7cKX3g9Hx89l
-```
-
-A lease renewal changes the password for the user.
-
-If the lease expires or the maximum expiry is reached, the user is revoked by
-Vault. When the user is revoked, the plugin will delete the user and all
-the corresponding create items (i.e., the role, binding, and user) are deleted.
-
-Note that the `roles_permissions` on the database will be updated during this process.
 
 ### Configuring a cluster user role
 
@@ -298,24 +265,59 @@ When you create the Vautl role for the user, you must specify a database role
 vault write database/roles/test db_name=redis-test creation_statements="{\"role\":\"DB Member\"}" default_ttl=3m max_ttl=5m
 ```
 
-Read a credential is the same:
+### Reading credentials
+
+Once the Vault role is configured, a workload can create a new credential by just
+reading the Vault role:
 
 ```
-vault read database/creds/test
+vault read database/creds/mydb
 ```
 
-with the same output:
+The result is similar to:
 
 ```
 Key                Value
 ---                -----
-lease_id           database/creds/test/zgVJfei8P0Tw7cKX3g9Hx89l
+lease_id           database/creds/mydb/zgVJfei8P0Tw7cKX3g9Hx89l
 lease_duration     3m
 lease_renewable    true
 password           ZWI87ddZMPR7hR8U-3sJ
-username           vault-test-69dea4c9-4da8-4e34-bf93-eebf60095766
+username           vault-mydb-69dea4c9-4da8-4e34-bf93-eebf60095766
 ```
 
-The only difference is the user credentials will work for whatever databases
-the Redis Enterprise cluster administrator has configured. No role is
-dynamically generated. Instead, the user has the reference role directly.
+A workload can renew the password before the lease expires up to the maximum expiry:
+
+```
+vault lease renew database/creds/test/zgVJfei8P0Tw7cKX3g9Hx89l
+```
+
+A lease renewal changes the password for the user.
+
+If the lease expires or the maximum expiry is reached, the user is revoked by
+Vault. When the user is revoked, the plugin will delete the user and all
+the corresponding create items (i.e., the role, binding, and user) are deleted.
+
+Note that the `roles_permissions` on the database will be updated during this process.
+
+### Using credentials
+
+The username and password can be directly used in the Redis `AUTH` command:
+
+```
+>AUTH vault-mydb-69dea4c9-4da8-4e34-bf93-eebf60095766 ZWI87ddZMPR7hR8U-3sJ
+```
+
+On a test cluster, you can forward the database port:
+
+```
+kubectl port-forward service/mydb `kubectl get service/mydb -o=jsonpath="{.spec.ports[0].targetPort}"`
+```
+
+Use the `redis-cli` to connect and authenticate:
+
+```
+redis-cli -p `kubectl get service/mydb -o=jsonpath="{.spec.ports[0].targetPort}"` --user vault-mydb-942fb9fe-f5c7-49d9-bce2-151c4c3c5343 --pass bxp-8GDDdZrDpbRfDzxg
+```
+
+where the username and password are the credentials returned by vault.
