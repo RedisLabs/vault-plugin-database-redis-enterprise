@@ -5,25 +5,27 @@ HashiCorp Vault Plugins for Redis Enterprise
 
 This plugin supports:
 
- * database users with a specific Redis ACL
  * database users via a role bound in the database
+ * database users with a specific Redis ACL
  * cluster-wide users with access to multiple databases.
+
+A **database user with a role** provides access by generating a user
+using an existing role bound to an ACL in the database. This enables role-based
+modeling of database users without actually creating the users. The plugin
+will manage the user lifecycle.
 
 A **database user with an ACL** provides access by creating a new role
 and role binding in the database. This is the most dynamic and requires no
 configuration by the administrator except when a new ACL is required to be
-created.
-
-A **database user with a role** provides access by replicating a role
-that is bound in a database. A new role is generated and assigned to the
-user with the same binding. This enables role-based modeling of user
-capabilities.
+created. **This may conflict with operator-managed role bindings for a database.**
 
 A **cluster user** are provided access to databases by the role
-of the user. The role binding in the database is controlled by the
-cluster administrator and not the plugin.
+of the user. No database is specified in the configuration. If the role is
+bound in a particular database, the user has capabilities in that database. This
+binding in the database is controlled by the cluster administrator and
+not the plugin. This allows the generated user to access more than one database.
 
-In all cases, the user is created dynamic and deleted when it expires.
+In all cases, the user is created dynamically and deleted when it expires.
 
 ## Building the plugin
 
@@ -48,7 +50,7 @@ export RS_PASSWORD=...
 go test
 ```
 
-The test require:
+The tests require:
 
  * a locally accessible endpoint for Redis Enterprise REST API
  * a database called `mydb`
