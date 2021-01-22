@@ -184,8 +184,17 @@ The following will config a Vault configuration of a Redis database called `mydb
 that the `allow_roles` specifies the Vault role names and not the Redis user role. In
 this example, we have enabled all vault roles with a wildcard.
 
+Using the defaults for a cluster setup, there is a cluster administrator account
+in the kubernetes secret for the cluster. You can retrieve these by:
+
+kubectl get secret/test -o=jsonpath={.data.username} | base64 -d
+kubectl get secret/test -o=jsonpath={.data.password} | base64 -d
+
+Use these values to configure a database, replacing the `...` at the end with
+the username and password, respectively:
+
 ```
-vault write database/config/redis-mydb plugin_name="redisenterprise-database-plugin" url="https://host.docker.internal:9443" allowed_roles="*" username="demo@redislabs.com" database=mydb password=...
+vault write database/config/redis-mydb plugin_name="redisenterprise-database-plugin" url="https://host.docker.internal:9443" allowed_roles="*" database=mydb username=... password=...
 ```
 
 
