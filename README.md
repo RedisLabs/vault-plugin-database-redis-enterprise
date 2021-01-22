@@ -38,12 +38,89 @@ running via docker, this is likely `linux/amd64`.
 ## Testing the plugin
 
 You you need a Redis Enterprise REST API endpoint and cluster administrator
-username and password to run the tests.
+username and password to run the tests. In general, the tests require a few
+environment variables and can be run as follows:
 
 ```
 export RS_API_URL=...
 export RS_USERNAME=...
 export RS_PASSWORD=...
+go test
+```
+
+The test require:
+
+ * a locally accessible endpoint for Redis Enterprise REST API
+ * a database called `mydb`
+
+The setup for testing is as follows:
+
+1. At minimum, the vault plugin needs to access the REST API of a Redis Enterprise
+   cluster. The [Redis Enterprise operator for Kubernetes](https://docs.redislabs.com/latest/platforms/kubernetes/)
+   can easily be installed on a variety of target distributions. You can
+   follow the [install procedure](https://github.com/RedisLabs/redis-enterprise-k8s-docs#installation)
+   to install the operator bundle into a namespace.
+
+1.  A very small test cluster can be established by:
+
+   ```
+   cat << EOF > test-cluster.yaml
+   apiVersion: app.redislabs.com/v1
+   kind: RedisEnterpriseCluster
+   metadata:
+     name: test
+   spec:
+     nodes: 3
+     redisEnterpriseNodeResources:
+       limits:
+         cpu: 1000m
+         memory: 3Gi
+       requests:
+         cpu: 1000m
+         memory: 3Gi
+   EOF
+   kubectl apply -f test-cluster.yaml
+   ```
+
+1. The cluster will bootstrap and you can check the status with:
+
+   ```
+   kubectl get rec/test -o=jsonpath={.status.state}
+   ```
+
+1. Once the status is `Running`, you can port forward the REST API to your local
+   machine for testing:
+
+   ```
+   kubectl port-forward service/test 9443
+   ```
+
+1. The end point for testing is now `https://localhost:9443/` and the credentials
+   are stored in the secret with the same name of the cluster (`secret/test`):
+
+   ```
+   export RS_API_URL=https://localhost:9443/
+   export RS_USERNAME=`kubectl get secret/test -o=jsonpath={.data.username} | base64 -d`
+   export RS_PASSWORD=`kubectl get secret/test -o=jsonpath={.data.password} | base64 -d`
+   ```
+
+1. The tests require a database to be setup:
+
+   ```
+   cat << EOF > mydb-100mb-db.yaml
+   apiVersion: app.redislabs.com/v1alpha1
+   kind: RedisEnterpriseDatabase
+   metadata:
+     name: mydb
+   spec:
+     memory: 100MB
+   EOF
+   kubectl apply -f mydb-100mb-db.yaml
+   ```
+
+The tests should now work against the cluster:
+
+```
 go test
 ```
 
