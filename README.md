@@ -134,37 +134,49 @@ go test
 
 ### Run a local Vault
 
+In your build directory for the plugin, run Vault so that it has access to the
+plugin binary:
+
 ```
 docker run --rm --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=xyzzyxyzzy' -v `pwd`:/etc/vault/plugins -e 'VAULT_LOCAL_CONFIG={"plugin_directory":"/etc/vault/plugins"}' vault
 ```
 
 ### Configure the plugin
 
-Calculate the sha256 checksum:
+From your build directory, calculate the sha256 checksum:
 
 ```
 shasum -a 256 vault-plugin-database-redisenterprise_linux_amd64 | cut -d' ' -f1
 ```
 
-Attach to the container:
+Now, attach to the running Vault container:
 
 ```
-docker exec -it {name} sh
+VAULT_NAME=`docker ps -f ancestor=vault --format "{{.Names}}"`
+docker exec -it $VAULT_NAME sh
 ```
 
-In the shell, setup the local vault authentication:
+In the shell, setup the local Vault authentication:
 
 ```
 export VAULT_TOKEN=$VAULT_DEV_ROOT_TOKEN_ID
 export VAULT_ADDR=http://127.0.0.1:8200
 ```
 
-Enable the plugin:
+Using the sha256 that you calculated above, modify this command to
+register the plugin:
 
 ```
 vault write sys/plugins/catalog/database/redisenterprise-database-plugin command=vault-plugin-database-redisenterprise_linux_amd64 sha256=...
+```
+
+Finally, enable the database secrets engine:
+
+```
 vault secrets enable database
 ```
+
+At this point, you can configure database roles for Redis Enterprise.
 
 ### Configure a database:
 
