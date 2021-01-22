@@ -114,6 +114,10 @@ The setup for testing is as follows:
      name: mydb
    spec:
      memory: 100MB
+     rolesPermissions:
+     - type: redis-enterprise
+       role: "DB Member"
+       acl: "Not Dangerous"
    EOF
    kubectl apply -f mydb-100mb-db.yaml
    ```
