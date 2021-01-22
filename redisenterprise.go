@@ -422,9 +422,9 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 
    var create_user map[string]interface{}
 
-   var rid float64
+   var rid float64 = -1
    var role_management string
-   var aid float64
+   var aid float64 = -1
 
    if hasRole {
       // get the role id
@@ -481,9 +481,9 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
          return dbplugin.NewUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s",database)
       }
 
-      // If there is no referenced ACL, find the ACL binding in the roles_permissions of the BDB
-      if !hasACL {
-         found_acl := false
+      // Find the referenced role binding in the role
+      var bound_aid float64 = -1
+      if hasRole {
          for _, value := range rolesPermissions {
             binding := value.(map[string]interface{})
             brole, found := binding["role_uid"]
@@ -491,57 +491,72 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
                continue
             }
             if rid == brole {
-               aid, found = binding["redis_acl_uid"].(float64)
+               bound_aid, found = binding["redis_acl_uid"].(float64)
                if !found {
+                  bound_aid = -1
                   continue
                }
-               found_acl = true
                break
             }
          }
-         if !found_acl {
-            return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s",database,role)
+      }
+
+      // If the role specified without an ACL and not bound in the database, this is an error
+      if hasRole && !hasACL && bound_aid<0 {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s",database,role)
+      }
+
+      // If the role and ACL are specified but unbound in the database, this is an error because it
+      // may cause escalation of privileges for other users with the same role already
+      if hasRole && hasACL && bound_aid<0 {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s",database,role)
+      }
+
+      // If the role and ACL are specified but the binding in the database is different, this is an error
+      if hasRole && hasACL && bound_aid>=0 && aid!=bound_aid {
+         return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has a different binding for role %s",database,role)
+      }
+
+      // If only the ACL is specified, create a new role & role binding
+      if !hasRole && hasACL {
+         vault_role := database + "-" + username
+         create_role := map[string]interface{} {
+            "name": vault_role,
+            "management": role_management,
          }
-      }
+         create_role_body, err := json.Marshal(create_role)
+         if err != nil {
+            return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal create role request: %s", err)
+         }
 
-      // Create a new role
-      vault_role := database + "-" + username
-      create_role := map[string]interface{} {
-         "name": vault_role,
-         "management": role_management,
-      }
-      create_role_body, err := json.Marshal(create_role)
-      if err != nil {
-         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal create role request: %s", err)
-      }
+         create_role_response_raw, err := client.post("/v1/roles",create_role_body)
+         if err != nil {
+            return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot create role: %s", err)
+         }
 
-      create_role_response_raw, err := client.post("/v1/roles",create_role_body)
-      if err != nil {
-         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot create role: %s", err)
+         var create_role_response interface{}
+         err = json.Unmarshal([]byte(create_role_response_raw), &create_role_response)
+         if err != nil {
+            return dbplugin.NewUserResponse{}, err
+         }
+
+         // Add the new binding to the same ACL
+         new_role_id := create_role_response.(map[string]interface{})["uid"].(float64)
+         rid = new_role_id
+
+         new_binding := map[string]interface{} {
+            "role_uid" : rid,
+            "redis_acl_uid" : aid,
+         }
+         rolesPermissions = append(rolesPermissions,new_binding)
+
+         // Update the database
+         err = updateRolePermissions(client,dbid,rolesPermissions)
+         if err != nil {
+            return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update role_permissions in database %s: %s", database, err)
+         }
+
       }
-
-      var create_role_response interface{}
-      err = json.Unmarshal([]byte(create_role_response_raw), &create_role_response)
-      if err != nil {
-         return dbplugin.NewUserResponse{}, err
-      }
-
-      // Add the new binding to the same ACL
-      new_role_id := create_role_response.(map[string]interface{})["uid"].(float64)
-
-      new_binding := map[string]interface{} {
-         "role_uid" : new_role_id,
-         "redis_acl_uid" : aid,
-      }
-      rolesPermissions = append(rolesPermissions,new_binding)
-
-      // Update the database
-      err = updateRolePermissions(client,dbid,rolesPermissions)
-      if err != nil {
-         return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update role_permissions in database %s: %s", database, err)
-      }
-
-      rid = new_role_id
 
    }
 
@@ -627,25 +642,13 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 
    if hasDatabase {
 
-      // If we have a database we need to:
-      // 1. Retrieve the DB and role ids
-      // 2. Find the role binding in roles_permissions in the DB definition
-      // 4. Remove the role binding
-      // 3. Delete the role
+      // If we have a database we need to there may be a generated
+      // role. If we find the generated role by name, we must also delete
+      // the generated role binding
 
+      // Find the role id of the potentially generated role
       role := database + "-" + req.Username
-
-      // Get the database id
-      dbid, found, err := findDatabase(client,database)
-      if err != nil {
-         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get databases: %s", err)
-      }
-      if !found {
-         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find database: %s", database)
-      }
-
-      // get the role id
-      rid, _, found, err := findRole(client,role)
+      rid, _, generatedRole, err := findRole(client,role)
       if err != nil {
          return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
       }
@@ -653,53 +656,76 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
          return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find role: %s", role)
       }
 
-      // Get the database information
-      var v interface{}
-      err = client.get(fmt.Sprintf("/v1/bdbs/%.0f",dbid),&v)
-      if err != nil {
-         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get database info: %s", err)
-      }
+      // If we found a role with the name, it was generated by this plugin
+      if generatedRole {
 
-      // Find the role binding to ACL
-      rolesPermissions, found := v.(map[string]interface{})["roles_permissions"].([]interface{})
-      if !found {
-         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s",database)
-      }
-      found_acl := false
-      var position int
-      for index, value := range rolesPermissions {
-         binding := value.(map[string]interface{})
-         brole, found := binding["role_uid"]
-         if !found {
-            continue
-         }
-         if rid == brole {
-            position = index
-            found_acl = true
-            break
-         }
-      }
-      if found_acl {
+         // We must:
+         // 1. Retrieve the DB and role ids
+         // 2. Find the role binding in roles_permissions in the DB definition
+         // 4. Remove the role binding
+         // 3. Delete the role
 
-         // Remove the binding
-         rolesPermissions = append(rolesPermissions[:position], rolesPermissions[position+1:]...)
-
-         // Update the database
-         err = updateRolePermissions(client,dbid,rolesPermissions)
+         // Get the database id
+         dbid, found, err := findDatabase(client,database)
          if err != nil {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get databases: %s", err)
+         }
+         if !found {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find database: %s", database)
+         }
 
-            // Attempt to delete the generated role - we know this may fail
-            err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
-            return dbplugin.DeleteUserResponse{}, fmt.Errorf("User deleted but role and role binding cannot be removed - cannot update role_permissions in database %s: %s", database, err)
+         // Get the database information
+         var v interface{}
+         err = client.get(fmt.Sprintf("/v1/bdbs/%.0f",dbid),&v)
+         if err != nil {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get database info: %s", err)
+         }
+
+         // Find the role binding to ACL
+         rolesPermissions, found := v.(map[string]interface{})["roles_permissions"].([]interface{})
+         if !found {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s",database)
+         }
+         found_acl := false
+         var position int
+         for index, value := range rolesPermissions {
+            binding := value.(map[string]interface{})
+            brole, found := binding["role_uid"]
+            if !found {
+               continue
+            }
+            if rid == brole {
+               position = index
+               found_acl = true
+               break
+            }
+         }
+
+         // If there is a role binding, we must remove the target role
+         if found_acl {
+
+            // Remove the binding
+            rolesPermissions = append(rolesPermissions[:position], rolesPermissions[position+1:]...)
+
+            // Update the database
+            err = updateRolePermissions(client,dbid,rolesPermissions)
+            if err != nil {
+
+               // Attempt to delete the generated role - we know this may fail
+               err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
+               return dbplugin.DeleteUserResponse{}, fmt.Errorf("User deleted but role and role binding cannot be removed - cannot update role_permissions in database %s: %s", database, err)
+            }
+
+         }
+
+         // Delete the generated role
+         err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
+         if err != nil {
+            return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete role (%s,%.0f): %s",role,rid,err)
          }
 
       }
 
-      // Delete the generated role
-      err = client.delete(fmt.Sprintf("/v1/roles/%.0f",rid))
-      if err != nil {
-         return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete role (%s,%.0f): %s",role,rid,err)
-      }
 
    }
    return dbplugin.DeleteUserResponse{}, nil
