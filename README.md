@@ -61,7 +61,7 @@ The setup for testing is as follows:
    follow the [install procedure](https://github.com/RedisLabs/redis-enterprise-k8s-docs#installation)
    to install the operator bundle into a namespace.
 
-1.  A very small test cluster can be established by:
+1. A very small test cluster can be established by:
 
    ```
    cat << EOF > test-cluster.yaml
