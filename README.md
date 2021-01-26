@@ -179,7 +179,7 @@ vault secrets enable database
 
 At this point, you can configure database roles for Redis Enterprise.
 
-### Configure a database:
+### Configure a database
 
 The following will config a Vault configuration of a Redis database called `mydb`. Note
 that the `allow_roles` specifies the Vault role names and not the Redis user role. In
