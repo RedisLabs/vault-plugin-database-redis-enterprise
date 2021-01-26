@@ -18,6 +18,7 @@ A **database user with an ACL** provides access by creating a new role
 and role binding in the database. This is the most dynamic and requires no
 configuration by the administrator except when a new ACL is required to be
 created. **This may conflict with operator-managed role bindings for a database.**
+This feature is turned off by default and must be enabled.
 
 A **cluster user** are provided access to databases by the role
 of the user. No database is specified in the configuration. If the role is
@@ -200,45 +201,30 @@ vault write database/config/redis-mydb plugin_name="redisenterprise-database-plu
 ```
 
 
-### Configure database user role
+### Configure database user with a role
 
-A user is associated with a role binding in the database. You must either
-reference a currently configured role binding or a Redis ACL.
+A user is associated with a role binding in the database. You
+reference a role bound to an ACL within the database. This role binding
+can be defined via the K8s database controller or via the administrative
+user interface.
 
-The preferred and simplest method is to use a role that is already bound
-in your database. This role binding can be defined via the K8s database
-controller or via the administrative user interface. This avoids having
-the plugin manage database role bindings that may conflict with other
-operations management (e.g., the K8s database controller).
-
-If you want to use a role that is bound in your database:
+You can reference only the role:
 
 ```
 vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"role\":\"DB Member\"}" default_ttl=3m max_ttl=5m
 ```
 
-This will create a user using the reference role. If the role is not bound in
-the database to an ACL, it is an error. If you also specify an ACL, the plugin
-will assert that the ACL specified and the binding are the same. For example:
+or add the ACL as well as an assertion:
 
 ```
 vault write database/roles/mydb-role-acl db_name=redis-mydb creation_statements="{\"role\":\"DB Member\",\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
 ```
 
-It is an error if the role does not have the same binding to the same ACL in the database.
+If the ACL is also specified, the plugin will check to ensure it has the same
+binding in the database. It is an error if the role does not have the same
+binding to the same ACL in the database.
 
-If you specify only a Redis ACL, a role and role binding in the database
-will be generated:
-
-```
-vault write database/roles/mydb-acl db_name=redis-mydb creation_statements="{\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
-```
-
-In this configuration, the user credentials returned will be bound to a new role
-bound to the requested ACL in the database.
-
-In both situations, a new user is generated and associated with the role used or
-generated.
+When used, a new user is generated and associated with the role referenced,
 
 A role binding in a database is never generated when using an existing role as this would
 allow escalation of privileges in the database for others users with the same role.
@@ -264,6 +250,31 @@ When you create the Vautl role for the user, you must specify a database role
 ```
 vault write database/roles/test db_name=redis-test creation_statements="{\"role\":\"DB Member\"}" default_ttl=3m max_ttl=5m
 ```
+
+### Configuring a database user with an ACL only
+
+This feature must be enabled When the database is configured via the "features"
+parameter with the vault "acl_only":
+
+```
+vault write database/config/redis-mydb plugin_name="redisenterprise-database-plugin" url="https://host.docker.internal:9443" allowed_roles="*" database=mydb features=acl_only username=... password=...
+```
+
+With this feature turned on, a database role can reference only an ACL. A role
+is dynamically generated for the user and bound in the database. In doing
+so, it changes the database definition. As such, it cannot be used with the
+K8s database controller as it also manages the database role permission bindings.
+
+This feature is used by specifying only the ACL:
+
+```
+vault write database/roles/mydb-acl db_name=redis-mydb creation_statements="{\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
+```
+
+When used, the generated user will have a generated role that is dynamically
+bound in the database to the ACL. When the user expires, the role and role
+binding is removed.
+
 
 ### Reading credentials
 
