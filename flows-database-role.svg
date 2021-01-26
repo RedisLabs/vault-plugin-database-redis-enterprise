@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0" width="654" height="621.333" viewBox="0, 0, 654, 621.333">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0" width="654" height="656.667" viewBox="0, 0, 654, 656.667">
   <g id="Layer_1" transform="translate(-32.333, -27)">
     <g>
       <path d="M72.833,28.5 L156.5,28.5 L156.5,66.5 L72.833,66.5 L72.833,28.5 z" fill="#FFFFFF"/>
@@ -37,11 +37,11 @@
     <text transform="matrix(1, 0, 0, 1, 642.5, 47)">
       <tspan x="-15.34" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">Redis</tspan>
     </text>
-    <path d="M114.5,66.5 L114.5,647.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-    <path d="M246.5,66.5 L246.5,647.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-    <path d="M379.167,66.5 L379.167,647.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-    <path d="M510.5,66.5 L510.5,647.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-    <path d="M641.833,66.5 L641.833,647.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+    <path d="M114.5,66.5 L114.5,683.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+    <path d="M246.5,66.5 L246.5,683.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+    <path d="M379.167,66.5 L378.673,683.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+    <path d="M510.5,66.5 L510.006,683.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+    <path d="M641.833,66.5 L641.34,683.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
     <text transform="matrix(1, 0, 0, 1, 182.351, 146)">
       <tspan x="-36.018" y="-17.5" font-family="ArialMT" font-size="12" fill="#000000">read dynamic</tspan>
       <tspan x="-24.346" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">vault role </tspan>
@@ -204,135 +204,143 @@
       <tspan x="-29.016" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">lease</tspan>
     </text>
     <g>
-      <path d="M114.5,440.5 L237.5,440.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M237.5,443.5 L245.5,440.5 L237.5,437.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M114.5,438.5 L237.5,438.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M237.5,441.5 L245.5,438.5 L237.5,435.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 189.633, 434.167)">
+    <text transform="matrix(1, 0, 0, 1, 188.633, 432)">
       <tspan x="-50.367" y="2.5" font-family="ArialMT" font-size="12" fill="#000000">read lease path</tspan>
     </text>
     <g>
-      <path d="M246.5,446.667 L370.167,446.667" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M370.167,449.667 L378.167,446.667 L370.167,443.667 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M510.5,578 L632.833,578" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M632.833,581 L640.833,578 L632.833,575 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
     <g>
-      <path d="M379.167,452.5 L501.5,452.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M501.5,455.5 L509.5,452.5 L501.5,449.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M246.5,445 L123.5,445" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M123.5,442 L115.5,445 L123.5,448 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <g>
-      <path d="M510.5,458.667 L388.167,458.667" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M388.167,455.667 L380.167,458.667 L388.167,461.667 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <text transform="matrix(1, 0, 0, 1, 312.333, 437.667)">
-      <tspan x="-36.012" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">UpdateUser()</tspan>
-    </text>
-    <text transform="matrix(1, 0, 0, 1, 310.353, 453.667)">
-      <tspan x="-46.02" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">w/ new password</tspan>
-    </text>
-    <text transform="matrix(1, 0, 0, 1, 443.344, 444.667)">
-      <tspan x="-38.235" y="3" font-family="ArialMT" font-size="12" fill="#000000">GET /v1/</tspan>
-      <tspan x="8.892" y="3" font-family="ArialMT" font-size="12" fill="#000000">users</tspan>
-    </text>
-    <text transform="matrix(1, 0, 0, 1, 446.556, 466)">
-      <tspan x="-51.688" y="2.167" font-family="ArialMT" font-size="12" fill="#000000">(find user by name)</tspan>
-    </text>
-    <g>
-      <path d="M379.167,493.5 L501.5,493.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M501.5,496.5 L509.5,493.5 L501.5,490.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <g>
-      <path d="M510.5,499.5 L388.167,498.879" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M388.182,495.879 L380.167,498.838 L388.151,501.879 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <text transform="matrix(1, 0, 0, 1, 445.344, 483.833)">
-      <tspan x="-49.579" y="3" font-family="ArialMT" font-size="12" fill="#000000">PUT /v1/</tspan>
-      <tspan x="-3.12" y="3" font-family="ArialMT" font-size="12" fill="#000000">users/nnn</tspan>
-    </text>
-    <g>
-      <path d="M510.5,505.167 L632.833,505.788" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M632.818,508.788 L640.833,505.828 L632.849,502.788 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <g>
-      <path d="M379.167,505.833 L255.5,505.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M255.5,502.833 L247.5,505.833 L255.5,508.833 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <text transform="matrix(1, 0, 0, 1, 572.639, 490.333)">
-      <tspan x="-39.357" y="-4" font-family="ArialMT" font-size="12" fill="#000000">update user w/ </tspan>
-      <tspan x="-25.679" y="10" font-family="ArialMT" font-size="12" fill="#000000">password</tspan>
-    </text>
-    <g>
-      <path d="M510.5,613 L632.833,613" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M632.833,616 L640.833,613 L632.833,610 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <text transform="matrix(1, 0, 0, 1, 312.661, 495)">
-      <tspan x="-63.041" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">UpdateUserResponse{}</tspan>
-    </text>
-    <g>
-      <path d="M246.5,512.5 L123.5,512.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M123.5,509.5 L115.5,512.5 L123.5,515.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <text transform="matrix(1, 0, 0, 1, 182.351, 490.333)">
-      <tspan x="-50.367" y="-10.5" font-family="ArialMT" font-size="12" fill="#000000">username,</tspan>
-      <tspan x="-50.367" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">password,</tspan>
-      <tspan x="-50.367" y="17.5" font-family="ArialMT" font-size="12" fill="#000000">lease renewal path</tspan>
+    <text transform="matrix(1, 0, 0, 1, 183.185, 473)">
+      <tspan x="-52.517" y="-17.5" font-family="ArialMT" font-size="12" fill="#000000">lease renewal path,</tspan>
+      <tspan x="-52.517" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">duration,</tspan>
+      <tspan x="-52.517" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">renewable (bool)</tspan>
     </text>
     <text transform="matrix(1, 0, 0, 1, 65.342, 401)">
       <tspan x="-33.009" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">Redis AUTH</tspan>
     </text>
-    <text transform="matrix(1, 0, 0, 1, 190.753, 568.333)">
+    <text transform="matrix(1, 0, 0, 1, 177, 540.5)">
       <tspan x="-44.03" y="-17.5" font-family="ArialMT" font-size="12" fill="#000000">Lease expiration </tspan>
       <tspan x="-5.335" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">or </tspan>
       <tspan x="-39.354" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">user expiration</tspan>
     </text>
     <g>
-      <path d="M246.5,552.5 L370.167,553.121" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M370.152,556.121 L378.167,553.162 L370.182,550.122 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M246.5,517.5 L370.167,518.122" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M370.152,521.122 L378.167,518.162 L370.182,515.122 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 312.681, 550.333)">
+    <text transform="matrix(1, 0, 0, 1, 312.681, 515.333)">
       <tspan x="-34.008" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">DeleteUser()</tspan>
       <tspan x="-34.348" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">w/ username</tspan>
     </text>
     <g>
-      <path d="M379.167,559.167 L501.5,559.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M501.5,562.167 L509.5,559.167 L501.5,556.167 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M379.167,524.167 L501.5,524.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M501.5,527.167 L509.5,524.167 L501.5,521.167 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
     <g>
-      <path d="M510.5,565.333 L388.167,565.333" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M388.167,562.333 L380.167,565.333 L388.167,568.333 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M510.5,530.333 L388.167,530.333" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M388.167,527.333 L380.167,530.333 L388.167,533.333 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 445.344, 550.333)">
+    <text transform="matrix(1, 0, 0, 1, 445.344, 515.333)">
       <tspan x="-38.235" y="3" font-family="ArialMT" font-size="12" fill="#000000">GET /v1/</tspan>
       <tspan x="8.892" y="3" font-family="ArialMT" font-size="12" fill="#000000">users</tspan>
     </text>
-    <text transform="matrix(1, 0, 0, 1, 448.332, 572.667)">
+    <text transform="matrix(1, 0, 0, 1, 448.332, 537.667)">
       <tspan x="-51.688" y="2.167" font-family="ArialMT" font-size="12" fill="#000000">(find user by name)</tspan>
     </text>
     <g>
-      <path d="M379.506,599.167 L501.839,599.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M501.839,602.167 L509.839,599.167 L501.839,596.167 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M379.506,564.167 L501.839,564.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M501.839,567.167 L509.839,564.167 L501.839,561.167 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
     <g>
-      <path d="M510.839,605.167 L388.505,604.546" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M388.521,601.546 L380.506,604.505 L388.49,607.546 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M510.839,570.167 L388.505,569.546" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M388.521,566.546 L380.506,569.505 L388.49,572.546 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 441.337, 597)">
+    <text transform="matrix(1, 0, 0, 1, 441.337, 562)">
       <tspan x="-61.028" y="-4.5" font-family="ArialMT" font-size="12" fill="#000000">DELETE /v1/</tspan>
       <tspan x="8.329" y="-4.5" font-family="ArialMT" font-size="12" fill="#000000">users/nnn</tspan>
     </text>
-    <text transform="matrix(1, 0, 0, 1, 575.667, 604.333)">
+    <text transform="matrix(1, 0, 0, 1, 575.667, 569.333)">
       <tspan x="-29.687" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">delete user</tspan>
     </text>
     <g>
-      <path d="M379.506,613 L255.5,613" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M255.5,610 L247.5,613 L255.5,616 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M379.506,578 L255.5,578" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M255.5,575 L247.5,578 L255.5,581 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 315.37, 601)">
+    <text transform="matrix(1, 0, 0, 1, 315.37, 566)">
       <tspan x="-61.037" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">DeleteUserResponse{}</tspan>
     </text>
-    <text transform="matrix(1, 0, 0, 1, 68.913, 570.833)">
+    <text transform="matrix(1, 0, 0, 1, 68.913, 535.833)">
       <tspan x="-36.58" y="-17.5" font-family="ArialMT" font-size="12" fill="#000000">Credential </tspan>
       <tspan x="-36.58" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">expiration is </tspan>
       <tspan x="-36.58" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">handled by </tspan>
       <tspan x="-36.58" y="24.5" font-family="ArialMT" font-size="12" fill="#000000">Vault alone</tspan>
+    </text>
+    <text transform="matrix(1, 0, 0, 1, 61.349, 618.333)">
+      <tspan x="-29.016" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">Password </tspan>
+      <tspan x="-29.016" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">rotation</tspan>
+    </text>
+    <g>
+      <path d="M246.006,612.333 L369.673,612.333" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M369.673,615.333 L377.673,612.333 L369.673,609.333 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <g>
+      <path d="M378.673,618.167 L501.006,618.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M501.006,621.167 L509.006,618.167 L501.006,615.167 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <g>
+      <path d="M510.006,624.333 L387.673,624.333" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M387.673,621.333 L379.673,624.333 L387.673,627.333 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <text transform="matrix(1, 0, 0, 1, 311.84, 603.333)">
+      <tspan x="-36.012" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">UpdateUser()</tspan>
+    </text>
+    <text transform="matrix(1, 0, 0, 1, 311.006, 619.333)">
+      <tspan x="-46.02" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">w/ new password</tspan>
+    </text>
+    <text transform="matrix(1, 0, 0, 1, 442.851, 610.333)">
+      <tspan x="-38.235" y="3" font-family="ArialMT" font-size="12" fill="#000000">GET /v1/</tspan>
+      <tspan x="8.892" y="3" font-family="ArialMT" font-size="12" fill="#000000">users</tspan>
+    </text>
+    <text transform="matrix(1, 0, 0, 1, 446.063, 631.667)">
+      <tspan x="-51.688" y="2.167" font-family="ArialMT" font-size="12" fill="#000000">(find user by name)</tspan>
+    </text>
+    <g>
+      <path d="M378.673,659.167 L501.006,659.167" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M501.006,662.167 L509.006,659.167 L501.006,656.167 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <g>
+      <path d="M510.006,665.167 L387.673,664.546" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M387.688,661.546 L379.673,664.505 L387.658,667.546 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <text transform="matrix(1, 0, 0, 1, 444.851, 649.5)">
+      <tspan x="-49.579" y="3" font-family="ArialMT" font-size="12" fill="#000000">PUT /v1/</tspan>
+      <tspan x="-3.12" y="3" font-family="ArialMT" font-size="12" fill="#000000">users/nnn</tspan>
+    </text>
+    <g>
+      <path d="M510.006,670.833 L632.34,671.454" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M632.325,674.454 L640.34,671.495 L632.355,668.454 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <g>
+      <path d="M378.673,671.5 L255.006,671.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M255.006,668.5 L247.006,671.5 L255.006,674.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <text transform="matrix(1, 0, 0, 1, 572.146, 656)">
+      <tspan x="-39.357" y="-4" font-family="ArialMT" font-size="12" fill="#000000">update user w/ </tspan>
+      <tspan x="-25.679" y="10" font-family="ArialMT" font-size="12" fill="#000000">password</tspan>
+    </text>
+    <text transform="matrix(1, 0, 0, 1, 312.168, 660.667)">
+      <tspan x="-63.041" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">UpdateUserResponse{}</tspan>
+    </text>
+    <text transform="matrix(1, 0, 0, 1, 180, 621.667)">
+      <tspan x="-58.028" y="-6.833" font-family="ArialMT" font-size="12" fill="#000000">...via vault operator or </tspan>
+      <tspan x="-21.009" y="7.167" font-family="ArialMT" font-size="12" fill="#000000">process</tspan>
     </text>
   </g>
 </svg>
