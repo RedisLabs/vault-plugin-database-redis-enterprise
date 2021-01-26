@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workload
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-auth
+  labels:
+    app: test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test
+  template:
+    metadata:
+      labels:
+        app: test
+      annotations:
+        vault.hashicorp.com/agent-inject: 'true'
+        vault.hashicorp.com/agent-inject-secret-mydb: 'database/creds/mydb'
+        vault.hashicorp.com/agent-inject-template-mydb: |
+          {{- with secret "database/creds/mydb" -}}
+          {"username":"{{ .Data.username }}","password":"{{ .Data.password }}"}
+          {{- end }}
+        vault.hashicorp.com/role: 'mydb'
+    spec:
+      volumes:
+        - name: scripts
+          configMap:
+             name: log-auth
+      serviceAccountName: workload
+      containers:
+      - name: log
+        image: python:3.8-slim
+        env:
+          - name: REDIS_HOST
+            value: "mydb.redis.svc"
+          - name: REDIS_PORT
+            value: "15657"
+        volumeMounts:
+          - mountPath: /opt/scripts/
+            name: scripts
+        lifecycle:
+          preStop:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  rm -f /var/run/loop
+        command:
+            - /bin/bash
+            - -c
+            - |
+              pip install redis
+              echo "RUNNING" > /var/run/loop
+              python /opt/scripts/log-auth.py
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-auth
+data:
+  log-auth.py: |
+    import redis
+    import os
+    import time
+    import json
+
+    host = os.environ['REDIS_HOST']
+    port = int(os.environ['REDIS_PORT'])
+    while os.path.exists('/var/run/loop'):
+       try:
+          with open('/vault/secrets/mydb') as secret:
+            creds = json.load(secret)
+            print(json.dumps(creds,indent=2),flush=True)
+          client = redis.Redis(host=host,port=port)
+          auth = client.execute_command('AUTH',creds['username'],creds['password'])
+          print('Authenticated: '+str(auth),flush=True)
+       except:
+          print('Ouch!')
+       time.sleep(1)
