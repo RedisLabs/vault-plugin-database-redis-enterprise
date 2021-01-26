@@ -183,10 +183,10 @@
       <tspan x="-29.687" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">delete user</tspan>
     </text>
     <g>
-      <path d="M379.506,588 L255.5,588" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M255.5,585 L247.5,588 L255.5,591 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M379.506,601 L255.5,601" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M255.5,598 L247.5,601 L255.5,604 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 315.37, 576)">
+    <text transform="matrix(1, 0, 0, 1, 315.37, 589)">
       <tspan x="-61.037" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">DeleteUserResponse{}</tspan>
     </text>
     <text transform="matrix(1, 0, 0, 1, 68.913, 402.833)">
@@ -257,32 +257,32 @@
       <tspan x="-46.69" y="2.167" font-family="ArialMT" font-size="12" fill="#000000">(find db by name)</tspan>
     </text>
     <g>
-      <path d="M379.336,571.333 L501.331,571.333" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M501.331,574.333 L509.331,571.333 L501.331,568.333 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M379.657,588.667 L501.99,588.667" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M501.99,591.667 L509.99,588.667 L501.99,585.667 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
     <g>
-      <path d="M510.5,576.667 L388.167,576.667" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M388.167,573.667 L380.167,576.667 L388.167,579.667 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+      <path d="M510.99,595 L388.657,594.379" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M388.672,591.379 L380.657,594.338 L388.642,597.379 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
     </g>
-    <text transform="matrix(1, 0, 0, 1, 443.344, 563.333)">
+    <text transform="matrix(1, 0, 0, 1, 441.294, 580.5)">
+      <tspan x="-59.361" y="3.333" font-family="ArialMT" font-size="12" fill="#000000">DELETE /v1/</tspan>
+      <tspan x="9.996" y="3.333" font-family="ArialMT" font-size="12" fill="#000000">roles/nnn</tspan>
+    </text>
+    <g>
+      <path d="M378.347,535.5 L500.342,535.5" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M500.342,538.5 L508.342,535.5 L500.342,532.5 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <g>
+      <path d="M509.511,540.833 L387.178,540.833" fill-opacity="0" stroke="#000000" stroke-width="1"/>
+      <path d="M387.178,537.833 L379.178,540.833 L387.178,543.833 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
+    </g>
+    <text transform="matrix(1, 0, 0, 1, 442.355, 527.5)">
       <tspan x="-47.918" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">PUT /v1/</tspan>
       <tspan x="-1.459" y="3.5" font-family="ArialMT" font-size="12" fill="#000000">bdbs/nnn</tspan>
     </text>
-    <text transform="matrix(1, 0, 0, 1, 445.333, 591.833)">
+    <text transform="matrix(1, 0, 0, 1, 444.344, 556)">
       <tspan x="-18.352" y="-3.5" font-family="ArialMT" font-size="12" fill="#000000">update </tspan>
       <tspan x="-48.352" y="10.5" font-family="ArialMT" font-size="12" fill="#000000">roles_permissions</tspan>
-    </text>
-    <g>
-      <path d="M379.726,541.667 L502.059,541.667" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M502.059,544.667 L510.059,541.667 L502.059,538.667 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <g>
-      <path d="M511.059,547 L388.726,546.379" fill-opacity="0" stroke="#000000" stroke-width="1"/>
-      <path d="M388.741,543.379 L380.726,546.338 L388.71,549.379 z" fill="#000000" fill-opacity="1" stroke="#000000" stroke-width="1" stroke-opacity="1"/>
-    </g>
-    <text transform="matrix(1, 0, 0, 1, 441.168, 532.5)">
-      <tspan x="-59.361" y="3.333" font-family="ArialMT" font-size="12" fill="#000000">DELETE /v1/</tspan>
-      <tspan x="9.996" y="3.333" font-family="ArialMT" font-size="12" fill="#000000">roles/nnn</tspan>
     </text>
   </g>
 </svg>
