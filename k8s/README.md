@@ -2,7 +2,7 @@
 
 ## Install
 
-The [overrid-values.yaml](override-values.yaml) file shows an example of
+The [override-values.yaml](override-values.yaml) file shows an example of
 configuring vault to provide a plugin via a volume.
 
 Install vault into the `vault` namespace via helm:
