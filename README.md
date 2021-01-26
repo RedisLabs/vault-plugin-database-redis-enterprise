@@ -356,3 +356,10 @@ It should be noted that the plugin updates the role_permissions aspect of
 the database definition. This conflicts with the Redis Enterprise Operator,
 which also maintains role_permissions, and so this cannot be used with the
 operator.
+
+## Kubernetes deployment
+
+The Vault sidecar injector and the plugin can work together to provide
+workloads access to databases via short-lived users and credentials. See
+the [Using the plugin on K8s](k8s/README.md) for a guide to to deploying and
+testing access to Redis Enterprise databases on Kubernetes.
