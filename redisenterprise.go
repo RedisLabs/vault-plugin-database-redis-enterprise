@@ -245,6 +245,21 @@ func new() *RedisEnterpriseDB {
    return &RedisEnterpriseDB{}
 }
 
+func (redb *RedisEnterpriseDB) HasFeature(name string) bool {
+   features, hasFeatures := redb.Config["features"].(string)
+   if !hasFeatures {
+      return false
+   }
+
+   for _, value := range strings.Split(features,",") {
+      if value == name {
+         return true
+      }
+   }
+
+   return false
+}
+
 // SecretVaults returns the configuration information with the password masked
 func (redb *RedisEnterpriseDB) SecretValues() map[string]string {
 
@@ -282,7 +297,7 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
       redb.Config[fieldName] = raw
    }
    // Check optional fields
-   for _, fieldName := range []string{"database"} {
+   for _, fieldName := range []string{"database","features"} {
       raw, ok := req.Config[fieldName]
       if !ok {
          continue
@@ -293,6 +308,11 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
       redb.Config[fieldName] = raw
    }
 
+   database, hasDatabase := redb.Config["database"].(string)
+
+   if !hasDatabase && redb.HasFeature("acl_only") {
+      return dbplugin.InitializeResponse{}, errors.New("The acl_only feature cannot be enabled if there is no database specified.")
+   }
 
    // Verify the connection to the database if requested.
    if req.VerifyConnection {
@@ -302,9 +322,8 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
       if err != nil {
          return dbplugin.InitializeResponse{}, fmt.Errorf("Could not verify connection to cluster: %s", err)
       }
-      database, ok := req.Config["database"].(string)
 
-      if ok {
+      if hasDatabase {
          _, found, err := findDatabase(client,database)
          if err != nil {
             return dbplugin.InitializeResponse{}, fmt.Errorf("Could not verify connection to cluster: %s", err)
@@ -410,7 +429,10 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
    if hasACL {
       fmt.Printf("acl: %s\n",acl)
    }
-   fmt.Printf("username: %s\n",username)
+
+   if !hasRole && hasACL && !redb.HasFeature("acl_only") {
+      return dbplugin.NewUserResponse{}, fmt.Errorf("The ACL only feature has not been enabled for %s. You must specify a role name.", req.UsernameConfig.RoleName)
+   }
 
    database, hasDatabase := redb.Config["database"].(string)
 
