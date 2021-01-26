@@ -2,24 +2,32 @@
 
 ## Install
 
+The [overrid-values.yaml](override-values.yaml) file shows an example of
+configuring vault to provide a plugin via a volume.
+
+Install vault into the `vault` namespace via helm:
 ```
 helm install vault hashicorp/vault --namespace vault -f override-values.yaml
 ```
 
-Once running:
+Once running, copy the plugin to the container:
 
 ```
 kubectl cp ../vault-plugin-database-redisenterprise_linux_amd64 vault-0:/usr/local/libexec/vault
 ```
 
+Attach to vault:
+
 ```
 kubectl exec -it vault-0 /bin/sh
 ```
 
+Initialize the vault:
 ```
 vault operator init
 ```
 
+You should see your vault keys:
 ```
 Unseal Key 1: OtthRGm05X3B2zQ7+JpE0pfrw40tSiW+meUsSu3UIIGm
 Unseal Key 2: yVEJSEXm6ZTWitIrmjZbmUFNUu1HKPrXDLlua8UTANWF
@@ -31,15 +39,20 @@ Initial Root Token: s.4NZawd2Ti83poa4gRzPXJLC6
 
 ```
 
+Afterwards, unseal the vault (using three different keys):
+
 ```
 vault operator unseal
 vault operator unseal
 vault operator unseal
 ```
 
+Setup your vault token and enable the plugin by replacing the sha256 of
+the plugin in the last part of the `vault write ... sha256=...`:
+
 ```
 export VAULT_TOKEN=...
-vault write sys/plugins/catalog/database/redisenterprise-database-plugin command=vault-plugin-database-redisenterprise_linux_amd64 sha256=
+vault write sys/plugins/catalog/database/redisenterprise-database-plugin command=vault-plugin-database-redisenterprise_linux_amd64 sha256=...
 vault secrets enable database
 ```
 
@@ -94,19 +107,14 @@ Run the redis-cli:
 redis-cli -p `kubectl get -n redis service/mydb -o=jsonpath="{.spec.ports[0].targetPort}"`
 ```
 
-And authenticate with the AUTH command using the credentials returned via
-attaching to the vault pod:
+and authenticate with the AUTH command using the credentials returned by
+reading the vault database role path via the vault CLI within the vault
+pod.
 
-```
-kubectl exec -it vault-0 /bin/sh
-```
-
-Get a credential for your database:
+Get a credential for your database via :
 ```
 vault read  database/creds/mydb
 ```
-
-
 
 ## Using the sidecar injector
 
