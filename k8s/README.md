@@ -13,13 +13,13 @@ helm install vault hashicorp/vault --namespace vault -f override-values.yaml
 Once running, copy the plugin to the container:
 
 ```
-kubectl cp ../vault-plugin-database-redisenterprise_linux_amd64 vault-0:/usr/local/libexec/vault
+kubectl cp -n vault ../vault-plugin-database-redisenterprise_linux_amd64 vault-0:/usr/local/libexec/vault
 ```
 
 Attach to vault:
 
 ```
-kubectl exec -it vault-0 /bin/sh
+kubectl exec -it -n vault vault-0 /bin/sh
 ```
 
 Initialize the vault:
@@ -71,7 +71,7 @@ The endpoint will be `https://test.redis.svc:9443`:
 Attach to the vault pod:
 
 ```
-kubectl exec -it vault-0 /bin/sh
+kubectl exec -it -n vault vault-0 /bin/sh
 ```
 
 Setup the vault token:
@@ -113,7 +113,7 @@ pod.
 
 Get a credential for your database via :
 ```
-vault read  database/creds/mydb
+vault read database/creds/mydb
 ```
 
 ## Using the sidecar injector
@@ -162,3 +162,24 @@ annotations:
 ```
 
 See the full example of a [workload deployment](log-auth.yaml) for all the details.
+
+## Upgrading the plugin
+
+Copy the new version of the plugin to the container:
+
+```
+kubectl cp -n vault ../vault-plugin-database-redisenterprise_linux_amd64 vault-0:/usr/local/libexec/vault
+```
+
+Attach to the vault pod:
+
+```
+kubectl exec -it -n vault vault-0 /bin/sh
+```
+
+Setup the vault token and register the new version:
+
+```
+export VAULT_TOKEN=...
+vault write sys/plugins/catalog/database/redisenterprise-database-plugin command=vault-plugin-database-redisenterprise_linux_amd64 sha256=...
+```
