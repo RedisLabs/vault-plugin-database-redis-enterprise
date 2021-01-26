@@ -305,7 +305,7 @@ Note that the `roles_permissions` on the database will be updated during this pr
 The username and password can be directly used in the Redis `AUTH` command:
 
 ```
->AUTH vault-mydb-69dea4c9-4da8-4e34-bf93-eebf60095766 ZWI87ddZMPR7hR8U-3sJ
+AUTH vault-mydb-69dea4c9-4da8-4e34-bf93-eebf60095766 ZWI87ddZMPR7hR8U-3sJ
 ```
 
 On a test cluster, you can forward the database port:
