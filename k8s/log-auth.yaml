@@ -77,9 +77,8 @@ data:
           with open('/vault/secrets/mydb') as secret:
             creds = json.load(secret)
             print(json.dumps(creds,indent=2),flush=True)
-          client = redis.Redis(host=host,port=port)
-          auth = client.execute_command('AUTH',creds['username'],creds['password'])
-          print('Authenticated: '+str(auth),flush=True)
+          client = redis.Redis(host=host,port=port,username=creds['username'],password=creds['password'])
+          print('Authenticated!',flush=True)
        except:
           print('Ouch!')
        time.sleep(1)
