@@ -1,5 +1,6 @@
-# vault-plugins
-HashiCorp Vault Plugins for Redis Enterprise
+# Vault Database Secrets Engine - Redis Enterprise Plugin
+
+A Redis Enterprise plugin for the HashiCorp Vault Database Secrets Engine.
 
 ## Overview
 
