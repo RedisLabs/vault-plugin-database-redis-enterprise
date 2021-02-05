@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 	"os"
-   dbplugin "github.com/hashicorp/vault/sdk/database/dbplugin/v5"
+
 	redisenterprise "github.com/RedisLabs/vault-plugin-database-redisenterprise"
+	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 )
 
 func main() {
