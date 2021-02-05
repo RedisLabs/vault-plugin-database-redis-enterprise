@@ -214,6 +214,7 @@ type RedisEnterpriseDB struct {
 	Config map[string]interface{}
 	logger hclog.Logger
 	client *sdk.Client
+	generateUsername func(string, string) (string, error)
 }
 
 func New() (dbplugin.Database, error) {
@@ -224,14 +225,25 @@ func New() (dbplugin.Database, error) {
 		Output:     os.Stderr,
 		JSONFormat: true,
 	})
-	db := newRedis(logger)
+
+	generateUsername := func(displayName string, roleName string) (string, error) {
+		return credsutil.GenerateUsername(
+			credsutil.DisplayName(displayName, 50),
+			credsutil.RoleName(roleName, 50),
+			credsutil.MaxLength(256),
+			credsutil.ToLower(),
+		)
+	}
+
+	db := newRedis(logger, generateUsername)
 	dbType := dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
 	return dbType, nil
 }
 
-func newRedis(logger hclog.Logger) *RedisEnterpriseDB {
+func newRedis(logger hclog.Logger, generateUsername func(string, string)(string, error)) *RedisEnterpriseDB {
 	return &RedisEnterpriseDB{
 		logger: logger,
+		generateUsername: generateUsername,
 	}
 }
 
@@ -401,12 +413,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 	}
 
 	// Generate a username which also includes random data (20 characters) and current epoch (11 characters) and the prefix 'v'
-	username, err := credsutil.GenerateUsername(
-		credsutil.DisplayName(req.UsernameConfig.DisplayName, 50),
-		credsutil.RoleName(req.UsernameConfig.RoleName, 50),
-		credsutil.MaxLength(256),
-		credsutil.ToLower(),
-	)
+	username, err := redb.generateUsername(req.UsernameConfig.DisplayName, req.UsernameConfig.RoleName)
 	if err != nil {
 		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot generate username: %s", err)
 	}
