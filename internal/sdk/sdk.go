@@ -23,15 +23,19 @@ type Client struct {
 const timeout = 60
 
 func NewClient(url string, username string, password string) *Client {
+	return NewClientWithTransport(url, username, password, &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	},)
+}
+
+func NewClientWithTransport(url string, username string, password string, transport *http.Transport) *Client {
 	return &Client{
 		url:      strings.TrimSuffix(url, "/"),
 		username: username,
 		password: password,
 		Client: &http.Client{
 			Timeout: timeout * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+			Transport: transport,
 		},
 	}
 }
