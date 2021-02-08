@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
+	"github.com/dnaeon/go-vcr/recorder"
 	"os"
 	"testing"
 	"time"
@@ -23,10 +24,16 @@ var (
 
 const context_timeout = 2 * time.Second
 
-func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool) *RedisEnterpriseDB{
+func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *RedisEnterpriseDB{
 
 	request := initializeRequest(url, username, password, database, enableACL)
-	db := newRedis(hclog.Default(), func(displayName string, roleName string) (string, error) {
+
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+
+	db := newRedis(hclog.Default(),
+		client,
+		func(displayName string, roleName string) (string, error) {
 		return displayName + roleName, nil
 	})
 
@@ -36,41 +43,31 @@ func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool) *Redi
 
 func TestRedisEnterpriseDB_Initialize_Without_Database(t *testing.T) {
 
-	//r, err := recorder.New("fixtures/" + "Initialize_Without_Database")
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//defer r.Stop()
-	//
-	//r.SetTransport(&http.Transport{
-	//	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	//})
-	//r.AddFilter(func(i *cassette.Interaction) error {
-	//	delete(i.Request.Headers, "Authorization")
-	//	return nil
-	//})
-	//
-	//myRoundTripper = r
+	record(t, "Initialize_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
+		database := ""
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
-	database := ""
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Cannot close database: %s", err)
+		}
 
-	db := setupRedisEnterpriseDB(t, database, enableACL)
-
-	err := db.Close()
-	if err != nil {
-		t.Fatalf("Cannot close database: %s", err)
-	}
+	})
 }
 
 func TestRedisEnterpriseDB_Initialize_With_Database(t *testing.T) {
 
-	db := setupRedisEnterpriseDB(t, database, enableACL)
+	record(t, "Initialize_With_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
-	err := db.Close()
-	if err != nil {
-		t.Fatalf("Cannot close database: %s", err)
-	}
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
+
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Cannot close database: %s", err)
+		}
+
+	})
 }
 
 func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
@@ -79,7 +76,7 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 	enableACL := true
 
 	request := initializeRequest(url, username, password, database, enableACL)
-	db := newRedis(hclog.Default(), func(displayName string, roleName string) (string, error) {
+	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
 		return displayName + roleName, nil
 	})
 
@@ -93,7 +90,9 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 }
 
 func assertUserExists(t *testing.T, url string, username string, password string, generatedUser string) {
-	client := sdk.NewClient(url, username, password)
+	client := sdk.NewClient()
+	client.Initialise(url, username, password)
+
 	users, err := client.ListUsers(context.TODO())
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +152,9 @@ func newUserRequest(role string, acl string) dbplugin.NewUserRequest {
 }
 
 func assertUserDoesNotExists(t *testing.T, url string, username string, password string, generatedUser string) {
-	client := sdk.NewClient(url, username, password)
+	client := sdk.NewClient()
+	client.Initialise(url, username, password)
+
 	users, err := client.ListUsers(context.TODO())
 	if err != nil {
 		t.Fatal(err)
