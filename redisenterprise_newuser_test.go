@@ -17,6 +17,7 @@ func TestRedisEnterpriseDB_NewUser_Without_Database(t *testing.T) {
 	record(t, "NewUser_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
 		database := ""
+		enableACL := false
 
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
@@ -50,6 +51,8 @@ func TestRedisEnterpriseDB_NewUser_Without_Database(t *testing.T) {
 func TestRedisEnterpriseDB_NewUser_With_Database(t *testing.T) {
 
 	record(t, "NewUser_With_Database", func(t *testing.T, recorder *recorder.Recorder) {
+
+		enableACL := false
 
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
@@ -115,6 +118,7 @@ func TestRedisEnterpriseDB_NewUser_Detect_Errors_Cluster(t *testing.T) {
 	record(t, "NewUser_Detect_Errors_Cluster", func(t *testing.T, recorder *recorder.Recorder) {
 
 		database := ""
+		enableACL := false
 
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
@@ -135,6 +139,8 @@ func TestRedisEnterpriseDB_NewUser_Detect_Errors_Cluster(t *testing.T) {
 func TestRedisEnterpriseDB_NewUser_Detect_Errors_With_Database_Without_ACL(t *testing.T) {
 
 	record(t, "NewUser_Detect_Errors_With_Database_Without_ACL", func(t *testing.T, recorder *recorder.Recorder) {
+
+		enableACL := false
 
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 

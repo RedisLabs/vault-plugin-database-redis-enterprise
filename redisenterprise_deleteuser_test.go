@@ -14,6 +14,8 @@ func TestRedisEnterpriseDB_DeleteUser_With_database(t *testing.T) {
 
 	record(t, "DeleteUser_With_database", func(t *testing.T, recorder *recorder.Recorder) {
 
+		enableACL := false
+
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
 		createReq := dbplugin.NewUserRequest{
@@ -44,6 +46,7 @@ func TestRedisEnterpriseDB_DeleteUser_Without_database(t *testing.T) {
 	record(t, "DeleteUser_Without_database", func(t *testing.T, recorder *recorder.Recorder) {
 
 		database := ""
+		enableACL := false
 
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 

@@ -38,7 +38,7 @@ func (c *SimpleRESTClient) getURL(apiPath string) string {
 }
 
 func (c *SimpleRESTClient) Initialise(url string, username string, password string) {
-	c.BaseURL = url
+	c.BaseURL = strings.TrimSuffix(url,"/")
 	c.Username = username
 	c.Password = password
 }
