@@ -19,7 +19,6 @@ var (
 	username = os.Getenv("RS_USERNAME")
 	password = os.Getenv("RS_PASSWORD")
 	database = os.Getenv("RS_DB")
-	enableACL = false
 )
 
 const context_timeout = 2 * time.Second
@@ -51,6 +50,7 @@ func TestRedisEnterpriseDB_Initialize_Without_Database(t *testing.T) {
 	record(t, "Initialize_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
 		database := ""
+		enableACL := false
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
 		err := db.Close()
@@ -65,6 +65,7 @@ func TestRedisEnterpriseDB_Initialize_With_Database(t *testing.T) {
 
 	record(t, "Initialize_With_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
+		enableACL := false
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
 		err := db.Close()

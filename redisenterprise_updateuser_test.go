@@ -15,6 +15,7 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 	record(t, "UpdateUser_With_New_Password", func(t *testing.T, recorder *recorder.Recorder) {
 
 		database := ""
+		enableACL := false
 
 		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
