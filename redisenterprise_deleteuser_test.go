@@ -35,7 +35,7 @@ func TestRedisEnterpriseDB_DeleteUser_With_database(t *testing.T) {
 		}
 
 		dbtesting.AssertDeleteUser(t, db, deleteReq)
-		assertUserDoesNotExists(t, url, username, password, userResponse.Username)
+		assertUserDoesNotExists(t, recorder, url, username, password, userResponse.Username)
 	})
 }
 
@@ -66,6 +66,6 @@ func TestRedisEnterpriseDB_DeleteUser_Without_database(t *testing.T) {
 		}
 
 		dbtesting.AssertDeleteUser(t, db, deleteReq)
-		assertUserDoesNotExists(t, url, username, password, userResponse.Username)
+		assertUserDoesNotExists(t, recorder, url, username, password, userResponse.Username)
 	})
 }

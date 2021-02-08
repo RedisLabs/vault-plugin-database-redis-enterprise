@@ -38,9 +38,9 @@ func TestRedisEnterpriseDB_NewUser_Without_Database(t *testing.T) {
 
 		res := dbtesting.AssertNewUser(t, db, createRequest)
 
-		assertUserExists(t, url, username, password, res.Username)
+		assertUserExists(t, recorder, url, username, password, res.Username)
 
-		teardownUserFromDatabase(t, db, res.Username)
+		teardownUserFromDatabase(t, recorder, db, res.Username)
 
 	})
 
@@ -71,9 +71,9 @@ func TestRedisEnterpriseDB_NewUser_With_Database(t *testing.T) {
 
 		res := dbtesting.AssertNewUser(t, db, createRequest)
 
-		assertUserExists(t, url, username, password, res.Username)
+		assertUserExists(t, recorder, url, username, password, res.Username)
 
-		teardownUserFromDatabase(t, db, res.Username)
+		teardownUserFromDatabase(t, recorder, db, res.Username)
 	})
 }
 
@@ -103,9 +103,9 @@ func TestRedisEnterpriseDB_NewUser_With_Database_With_ACL(t *testing.T) {
 
 		res := dbtesting.AssertNewUser(t, db, createRequest)
 
-		assertUserExists(t, url, username, password, res.Username)
+		assertUserExists(t, recorder, url, username, password, res.Username)
 
-		teardownUserFromDatabase(t, db, res.Username)
+		teardownUserFromDatabase(t, recorder, db, res.Username)
 	})
 
 }

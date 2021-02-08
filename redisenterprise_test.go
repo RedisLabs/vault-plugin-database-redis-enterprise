@@ -89,8 +89,9 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 	}
 }
 
-func assertUserExists(t *testing.T, url string, username string, password string, generatedUser string) {
+func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
 	client := sdk.NewClient()
+	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	users, err := client.ListUsers(context.TODO())
@@ -151,8 +152,9 @@ func newUserRequest(role string, acl string) dbplugin.NewUserRequest {
 	return createReq
 }
 
-func assertUserDoesNotExists(t *testing.T, url string, username string, password string, generatedUser string) {
+func assertUserDoesNotExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
 	client := sdk.NewClient()
+	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	users, err := client.ListUsers(context.TODO())
@@ -167,10 +169,10 @@ func assertUserDoesNotExists(t *testing.T, url string, username string, password
 	}
 }
 
-func teardownUserFromDatabase(t *testing.T, db *RedisEnterpriseDB, generatedUser string) {
+func teardownUserFromDatabase(t *testing.T, recorder *recorder.Recorder, db *RedisEnterpriseDB, generatedUser string) {
 
 	dbtesting.AssertDeleteUser(t, db, dbplugin.DeleteUserRequest{
 		Username: generatedUser,
 	})
-	assertUserDoesNotExists(t, url, username, password, generatedUser)
+	assertUserDoesNotExists(t, recorder, url, username, password, generatedUser)
 }
