@@ -27,6 +27,7 @@ type SimpleRESTClient struct {
 	BaseURL  string
 	Username string
 	Password string
+	RoundTripper http.RoundTripper
 }
 
 // The timeout for the REST client requests.
@@ -37,16 +38,19 @@ func (c *SimpleRESTClient) getURL(apiPath string) string {
 	return fmt.Sprintf("%s/%s", c.BaseURL, apiPath)
 }
 
+func (c *SimpleRESTClient) Initialise(url string, username string, password string) {
+	c.BaseURL = url
+	c.Username = username
+	c.Password = password
+}
+
 // request performs an HTTP(S) request, adding various options like authentication. The
 // response is return as a tuple that includes the body of the response message and
 // status code.
 func (c *SimpleRESTClient) request(req *http.Request) (responseBytes []byte, statusCode int, err error) {
 	req.SetBasicAuth(c.Username, c.Password)
 	req.Header.Add("Content-Type", "application/json;charset=utf-8")
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	httpClient := http.Client{Timeout: timeout * time.Second, Transport: tr}
+	httpClient := http.Client{Timeout: timeout * time.Second, Transport: c.RoundTripper}
 
 	response, err := httpClient.Do(req)
 	if err != nil {
@@ -212,9 +216,10 @@ var _ dbplugin.Database = (*RedisEnterpriseDB)(nil)
 // Our database datastructure only holds the credentials. We have no connection
 // to maintain as we're just manipulating the cluster via the REST API.
 type RedisEnterpriseDB struct {
-	Config map[string]interface{}
-	logger hclog.Logger
-	client *sdk.Client
+	Config           map[string]interface{}
+	logger           hclog.Logger
+	client           *sdk.Client
+	simpleClient     *SimpleRESTClient
 	generateUsername func(string, string) (string, error)
 }
 
@@ -237,16 +242,23 @@ func New() (dbplugin.Database, error) {
 	}
 	client := sdk.NewClient()
 
-	db := newRedis(logger, client, generateUsername)
+	simpleClient := SimpleRESTClient{
+		RoundTripper: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	db := newRedis(logger, client, &simpleClient, generateUsername)
 	dbType := dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
 	return dbType, nil
 }
 
-func newRedis(logger hclog.Logger, client *sdk.Client, generateUsername func(string, string)(string, error)) *RedisEnterpriseDB {
+func newRedis(logger hclog.Logger, client *sdk.Client, simpleClient *SimpleRESTClient, generateUsername func(string, string)(string, error)) *RedisEnterpriseDB {
 	return &RedisEnterpriseDB{
-		logger: logger,
+		logger:           logger,
 		generateUsername: generateUsername,
-		client: client,
+		client:           client,
+		simpleClient:     simpleClient,
 	}
 }
 
@@ -322,6 +334,7 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 	}
 
 	redb.client.Initialise(req.Config["url"].(string), req.Config["username"].(string), req.Config["password"].(string))
+	redb.simpleClient.Initialise(req.Config["url"].(string), req.Config["username"].(string), req.Config["password"].(string))
 
 	// Verify the connection to the database if requested.
 	if req.VerifyConnection {
@@ -440,7 +453,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 		return dbplugin.NewUserResponse{}, fmt.Errorf("ACL cannot be used when the database has not been specified for %s", req.UsernameConfig.RoleName)
 	}
 
-	client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string), "/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
+	client := redb.simpleClient
 
 	var rid int = -1
 	var role_management string
@@ -459,7 +472,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 	if hasACL {
 		// get the ACL id
 		var found bool
-		aid, found, err = findACL(client, acl)
+		aid, found, err = findACL(*client, acl)
 		if err != nil {
 			return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get acls: %s", err)
 		}
@@ -550,7 +563,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 			rolesPermissions = append(rolesPermissions, new_binding)
 
 			// Update the database
-			err = updateRolePermissions(client, float64(db.UID), rolesPermissions)
+			err = updateRolePermissions(*client, float64(db.UID), rolesPermissions)
 			if err != nil {
 				return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update role_permissions in database %s: %s", database, err)
 			}
@@ -618,15 +631,14 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 	database, hasDatabase := redb.Config["database"].(string)
 
 	if hasDatabase {
-		client := SimpleRESTClient{BaseURL: strings.TrimSuffix(redb.Config["url"].(string), "/"), Username: redb.Config["username"].(string), Password: redb.Config["password"].(string)}
-
+		client := redb.simpleClient
 		// If we have a database we need to there may be a generated
 		// role. If we find the generated role by name, we must also delete
 		// the generated role binding
 
 		// Find the role id of the potentially generated role
 		role := database + "-" + req.Username
-		rid, _, generatedRole, err := findRole(client, role)
+		rid, _, generatedRole, err := findRole(*client, role)
 		if err != nil {
 			return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
 		}
@@ -641,7 +653,7 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 			// 3. Delete the role
 
 			// Get the database id
-			dbid, found, err := findDatabase(client, database)
+			dbid, found, err := findDatabase(*client, database)
 			if err != nil {
 				return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get databases: %s", err)
 			}
@@ -683,7 +695,7 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 				rolesPermissions = append(rolesPermissions[:position], rolesPermissions[position+1:]...)
 
 				// Update the database
-				err = updateRolePermissions(client, dbid, rolesPermissions)
+				err = updateRolePermissions(*client, dbid, rolesPermissions)
 				if err != nil {
 
 					// Attempt to delete the generated role - we know this may fail

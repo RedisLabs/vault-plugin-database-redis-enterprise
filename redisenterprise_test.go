@@ -31,8 +31,13 @@ func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recor
 	client := sdk.NewClient()
 	client.Client.Transport = recorder
 
+	simpleClient := SimpleRESTClient{
+		RoundTripper: recorder,
+	}
+
 	db := newRedis(hclog.Default(),
 		client,
+		&simpleClient,
 		func(displayName string, roleName string) (string, error) {
 		return displayName + roleName, nil
 	})
@@ -76,7 +81,7 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 	enableACL := true
 
 	request := initializeRequest(url, username, password, database, enableACL)
-	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
+	db := newRedis(hclog.Default(), nil, nil, func(displayName string, roleName string) (string, error) {
 		return displayName + roleName, nil
 	})
 
