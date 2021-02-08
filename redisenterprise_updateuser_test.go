@@ -33,6 +33,7 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 		userResponse := dbtesting.AssertNewUser(t, db, createReq)
 
 		client := sdk.NewClient()
+		client.Client.Transport = recorder
 		client.Initialise(url, username, password)
 
 		beforeUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
@@ -61,7 +62,7 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 			t.Errorf("password hasn't been updated")
 		}
 
-		teardownUserFromDatabase(t, db, userResponse.Username)
+		teardownUserFromDatabase(t, recorder, db, userResponse.Username)
 	})
 
 }
