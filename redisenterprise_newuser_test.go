@@ -110,9 +110,9 @@ func TestRedisEnterpriseDB_NewUser_With_Database_With_ACL(t *testing.T) {
 
 }
 
-func TestRedisEnterpriseDB_NewUser_Detect_Cluster_Errors(t *testing.T) {
+func TestRedisEnterpriseDB_NewUser_Detect_Errors_Cluster(t *testing.T) {
 
-	record(t, "NewUser_Detect_Cluster_Errors", func(t *testing.T, recorder *recorder.Recorder) {
+	record(t, "NewUser_Detect_Errors_Cluster", func(t *testing.T, recorder *recorder.Recorder) {
 
 		database := ""
 
