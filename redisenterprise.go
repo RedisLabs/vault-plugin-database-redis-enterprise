@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
+	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/version"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 	"github.com/hashicorp/vault/sdk/database/helper/credsutil"
@@ -298,6 +299,8 @@ func (redb *RedisEnterpriseDB) secretValues() map[string]string {
 // Initialize copies the configuration information and does a GET on /v1/cluster
 // to ensure the cluster is reachable
 func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
+
+	redb.logger.Info("initialising plugin", "version", version.Version, "commit", version.GitCommit)
 
 	redb.Config = make(map[string]interface{})
 
