@@ -3,6 +3,7 @@ package vault_plugin_database_redisenterprise
 import (
 	"context"
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
+	"github.com/dnaeon/go-vcr/recorder"
 	"testing"
 	"time"
 
@@ -11,51 +12,56 @@ import (
 )
 
 func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
+	record(t, "UpdateUser_With_New_Password", func(t *testing.T, recorder *recorder.Recorder) {
 
-	database := ""
+		database := ""
 
-	db := setupRedisEnterpriseDB(t, database, enableACL)
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
-	createReq := dbplugin.NewUserRequest{
-		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "tester_update",
-			RoleName:    "test",
-		},
-		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"DB Member"}`},
-		},
-		Password:   "testing",
-		Expiration: time.Now().Add(time.Minute),
-	}
+		createReq := dbplugin.NewUserRequest{
+			UsernameConfig: dbplugin.UsernameMetadata{
+				DisplayName: "tester_update",
+				RoleName:    "test",
+			},
+			Statements: dbplugin.Statements{
+				Commands: []string{`{"role":"DB Member"}`},
+			},
+			Password:   "testing",
+			Expiration: time.Now().Add(time.Minute),
+		}
 
-	userResponse := dbtesting.AssertNewUser(t, db, createReq)
+		userResponse := dbtesting.AssertNewUser(t, db, createReq)
 
-	client := sdk.NewClient(url, username, password)
-	beforeUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
-	if err != nil {
-		t.Fatal(err)
-	}
+		client := sdk.NewClient()
+		client.Initialise(url, username, password)
 
-	// Wait a bit so the password updated date will be different
-	time.Sleep(2 * time.Second)
+		beforeUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	updateReq := dbplugin.UpdateUserRequest{
-		Username: userResponse.Username,
-		Password: &dbplugin.ChangePassword{
-			NewPassword: "xyzzyxyzzy",
-		},
-	}
+		// Wait a bit so the password updated date will be different
+		time.Sleep(2 * time.Second)
 
-	dbtesting.AssertUpdateUser(t, db, updateReq)
+		updateReq := dbplugin.UpdateUserRequest{
+			Username: userResponse.Username,
+			Password: &dbplugin.ChangePassword{
+				NewPassword: "xyzzyxyzzy",
+			},
+		}
 
-	afterUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
-	if err != nil {
-		t.Fatal(err)
-	}
+		dbtesting.AssertUpdateUser(t, db, updateReq)
 
-	if beforeUpdate.PasswordIssueDate == afterUpdate.PasswordIssueDate {
-		t.Errorf("password hasn't been updated")
-	}
+		afterUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	teardownUserFromDatabase(t, db, userResponse.Username)
+		if beforeUpdate.PasswordIssueDate == afterUpdate.PasswordIssueDate {
+			t.Errorf("password hasn't been updated")
+		}
+
+		teardownUserFromDatabase(t, db, userResponse.Username)
+	})
+
 }

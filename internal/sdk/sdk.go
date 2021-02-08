@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -22,22 +21,21 @@ type Client struct {
 // The timeout for the REST client requests.
 const timeout = 60
 
-func NewClient(url string, username string, password string) *Client {
-	return NewClientWithTransport(url, username, password, &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	},)
-}
-
-func NewClientWithTransport(url string, username string, password string, transport *http.Transport) *Client {
+func NewClient() *Client {
 	return &Client{
-		url:      strings.TrimSuffix(url, "/"),
-		username: username,
-		password: password,
 		Client: &http.Client{
 			Timeout: timeout * time.Second,
-			Transport: transport,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
 		},
 	}
+}
+
+func (c *Client) Initialise(url string, username string, password string) {
+	c.url = url
+	c.username = username
+	c.password = password
 }
 
 func (c *Client) Close() error {

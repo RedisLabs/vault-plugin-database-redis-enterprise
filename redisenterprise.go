@@ -235,16 +235,18 @@ func New() (dbplugin.Database, error) {
 			credsutil.ToLower(),
 		)
 	}
+	client := sdk.NewClient()
 
-	db := newRedis(logger, generateUsername)
+	db := newRedis(logger, client, generateUsername)
 	dbType := dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
 	return dbType, nil
 }
 
-func newRedis(logger hclog.Logger, generateUsername func(string, string)(string, error)) *RedisEnterpriseDB {
+func newRedis(logger hclog.Logger, client *sdk.Client, generateUsername func(string, string)(string, error)) *RedisEnterpriseDB {
 	return &RedisEnterpriseDB{
 		logger: logger,
 		generateUsername: generateUsername,
+		client: client,
 	}
 }
 
@@ -319,7 +321,7 @@ func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Init
 		return dbplugin.InitializeResponse{}, errors.New("the acl_only feature cannot be enabled if there is no database specified")
 	}
 
-	redb.client = sdk.NewClient(req.Config["url"].(string), req.Config["username"].(string), req.Config["password"].(string))
+	redb.client.Initialise(req.Config["url"].(string), req.Config["username"].(string), req.Config["password"].(string))
 
 	// Verify the connection to the database if requested.
 	if req.VerifyConnection {

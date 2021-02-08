@@ -1,6 +1,7 @@
 package vault_plugin_database_redisenterprise
 
 import (
+	"github.com/dnaeon/go-vcr/recorder"
 	"testing"
 	"time"
 
@@ -9,56 +10,62 @@ import (
 )
 
 
-func TestRedisEnterpriseDB_DeleteUser(t *testing.T) {
+func TestRedisEnterpriseDB_DeleteUser_With_database(t *testing.T) {
 
-	db := setupRedisEnterpriseDB(t, database, enableACL)
+	record(t, "DeleteUser_With_database", func(t *testing.T, recorder *recorder.Recorder) {
 
-	createReq := dbplugin.NewUserRequest{
-		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "tester_del",
-			RoleName:    "test",
-		},
-		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"DB Member"}`},
-		},
-		Password:   "testing",
-		Expiration: time.Now().Add(time.Minute),
-	}
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
-	userResponse := dbtesting.AssertNewUser(t, db, createReq)
+		createReq := dbplugin.NewUserRequest{
+			UsernameConfig: dbplugin.UsernameMetadata{
+				DisplayName: "tester_del",
+				RoleName:    "test",
+			},
+			Statements: dbplugin.Statements{
+				Commands: []string{`{"role":"DB Member"}`},
+			},
+			Password:   "testing",
+			Expiration: time.Now().Add(time.Minute),
+		}
 
-	deleteReq := dbplugin.DeleteUserRequest{
-		Username: userResponse.Username,
-	}
+		userResponse := dbtesting.AssertNewUser(t, db, createReq)
 
-	dbtesting.AssertDeleteUser(t, db, deleteReq)
-	assertUserDoesNotExists(t, url, username, password, userResponse.Username)
+		deleteReq := dbplugin.DeleteUserRequest{
+			Username: userResponse.Username,
+		}
+
+		dbtesting.AssertDeleteUser(t, db, deleteReq)
+		assertUserDoesNotExists(t, url, username, password, userResponse.Username)
+	})
 }
 
 func TestRedisEnterpriseDB_DeleteUser_Without_database(t *testing.T) {
 
-	database := ""
+	record(t, "DeleteUser_Without_database", func(t *testing.T, recorder *recorder.Recorder) {
 
-	db := setupRedisEnterpriseDB(t, database, enableACL)
+		database := ""
 
-	createReq := dbplugin.NewUserRequest{
-		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "tester_del_without_db",
-			RoleName:    "test",
-		},
-		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"DB Member"}`},
-		},
-		Password:   "testing",
-		Expiration: time.Now().Add(time.Minute),
-	}
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
-	userResponse := dbtesting.AssertNewUser(t, db, createReq)
+		createReq := dbplugin.NewUserRequest{
+			UsernameConfig: dbplugin.UsernameMetadata{
+				DisplayName: "tester_del_without_db",
+				RoleName:    "test",
+			},
+			Statements: dbplugin.Statements{
+				Commands: []string{`{"role":"DB Member"}`},
+			},
+			Password:   "testing",
+			Expiration: time.Now().Add(time.Minute),
+		}
 
-	deleteReq := dbplugin.DeleteUserRequest{
-		Username: userResponse.Username,
-	}
+		userResponse := dbtesting.AssertNewUser(t, db, createReq)
 
-	dbtesting.AssertDeleteUser(t, db, deleteReq)
-	assertUserDoesNotExists(t, url, username, password, userResponse.Username)
+		deleteReq := dbplugin.DeleteUserRequest{
+			Username: userResponse.Username,
+		}
+
+		dbtesting.AssertDeleteUser(t, db, deleteReq)
+		assertUserDoesNotExists(t, url, username, password, userResponse.Username)
+	})
 }
