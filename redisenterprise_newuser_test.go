@@ -10,8 +10,6 @@ import (
 	dbtesting "github.com/hashicorp/vault/sdk/database/dbplugin/v5/testing"
 )
 
-
-
 func TestRedisEnterpriseDB_NewUser_Without_Database(t *testing.T) {
 
 	record(t, "NewUser_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
@@ -44,7 +42,6 @@ func TestRedisEnterpriseDB_NewUser_Without_Database(t *testing.T) {
 		teardownUserFromDatabase(t, recorder, db, res.Username)
 
 	})
-
 
 }
 

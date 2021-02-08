@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-var(
+var (
 	disbaleFixtures = getEnvAsBool("RS_DISABLE_FIXTURES", false)
 )
 
