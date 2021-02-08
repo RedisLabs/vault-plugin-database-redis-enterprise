@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	url = os.Getenv("RS_API_URL")
+	url      = os.Getenv("RS_API_URL")
 	username = os.Getenv("RS_USERNAME")
 	password = os.Getenv("RS_PASSWORD")
 	database = os.Getenv("RS_DB")
@@ -23,7 +23,7 @@ var (
 
 const context_timeout = 2 * time.Second
 
-func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *RedisEnterpriseDB{
+func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *RedisEnterpriseDB {
 
 	request := initializeRequest(url, username, password, database, enableACL)
 
@@ -38,8 +38,8 @@ func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recor
 		client,
 		&simpleClient,
 		func(displayName string, roleName string) (string, error) {
-		return displayName + roleName, nil
-	})
+			return displayName + roleName, nil
+		})
 
 	dbtesting.AssertInitialize(t, db, request)
 	return db

@@ -9,7 +9,6 @@ import (
 	dbtesting "github.com/hashicorp/vault/sdk/database/dbplugin/v5/testing"
 )
 
-
 func TestRedisEnterpriseDB_DeleteUser_With_database(t *testing.T) {
 
 	record(t, "DeleteUser_With_database", func(t *testing.T, recorder *recorder.Recorder) {

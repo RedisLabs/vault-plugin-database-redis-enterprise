@@ -24,9 +24,9 @@ const redisEnterpriseTypeName = "redisenterprise"
 
 // This REST client just handles the raw requests with JSON and nothing more.
 type SimpleRESTClient struct {
-	BaseURL  string
-	Username string
-	Password string
+	BaseURL      string
+	Username     string
+	Password     string
 	RoundTripper http.RoundTripper
 }
 
@@ -39,7 +39,7 @@ func (c *SimpleRESTClient) getURL(apiPath string) string {
 }
 
 func (c *SimpleRESTClient) Initialise(url string, username string, password string) {
-	c.BaseURL = strings.TrimSuffix(url,"/")
+	c.BaseURL = strings.TrimSuffix(url, "/")
 	c.Username = username
 	c.Password = password
 }
@@ -253,7 +253,7 @@ func New() (dbplugin.Database, error) {
 	return dbType, nil
 }
 
-func newRedis(logger hclog.Logger, client *sdk.Client, simpleClient *SimpleRESTClient, generateUsername func(string, string)(string, error)) *RedisEnterpriseDB {
+func newRedis(logger hclog.Logger, client *sdk.Client, simpleClient *SimpleRESTClient, generateUsername func(string, string) (string, error)) *RedisEnterpriseDB {
 	return &RedisEnterpriseDB{
 		logger:           logger,
 		generateUsername: generateUsername,
