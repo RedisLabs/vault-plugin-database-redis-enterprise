@@ -205,7 +205,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/redis_acls
+    url: https://localhost:9443/v1/redis_acls
     method: GET
   response:
     body: |-
@@ -419,7 +419,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/roles
+    url: https://localhost:9443/v1/roles
     method: POST
   response:
     body: |
@@ -446,7 +446,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/bdbs/1
+    url: https://localhost:9443/v1/bdbs/1
     method: PUT
   response:
     body: |
@@ -634,7 +634,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/roles
+    url: https://localhost:9443/v1/roles
     method: GET
   response:
     body: |-
@@ -697,7 +697,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/bdbs
+    url: https://localhost:9443/v1/bdbs
     method: GET
   response:
     body: |-
@@ -875,7 +875,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/bdbs/1
+    url: https://localhost:9443/v1/bdbs/1
     method: GET
   response:
     body: |
@@ -902,7 +902,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/bdbs/1
+    url: https://localhost:9443/v1/bdbs/1
     method: PUT
   response:
     body: |
@@ -927,7 +927,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/bdbs/1
+    url: https://localhost:9443/v1/bdbs/1
     method: PUT
   response:
     body: |
@@ -954,7 +954,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/roles/33
+    url: https://localhost:9443/v1/roles/33
     method: DELETE
   response:
     body: |

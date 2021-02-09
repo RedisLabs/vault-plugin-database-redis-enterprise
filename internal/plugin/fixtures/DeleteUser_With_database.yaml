@@ -543,7 +543,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/roles
+    url: https://localhost:9443/v1/roles
     method: GET
   response:
     body: |-

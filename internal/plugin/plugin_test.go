@@ -25,20 +25,16 @@ var (
 	database = os.Getenv("RS_DB")
 )
 
-func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *RedisEnterpriseDB {
+func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *redisEnterpriseDB {
+	t.Helper()
 
 	request := initializeRequest(url, username, password, database, enableACL)
 
 	client := sdk.NewClient()
 	client.Client.Transport = recorder
 
-	simpleClient := SimpleRESTClient{
-		RoundTripper: recorder,
-	}
-
 	db := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}),
 		client,
-		&simpleClient,
 		func(displayName string, roleName string) (string, error) {
 			return displayName + roleName, nil
 		})
@@ -74,7 +70,7 @@ func TestRedisEnterpriseDB_Initialize_With_Database(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 
 	request := initializeRequest(url, username, password, "", true)
-	db := newRedis(hclog.Default(), nil, nil, func(displayName string, roleName string) (string, error) {
+	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
 		return displayName + roleName, nil
 	})
 
@@ -83,6 +79,7 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 }
 
 func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
+	t.Helper()
 	client := sdk.NewClient()
 	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
@@ -148,8 +145,8 @@ func assertUserDoesNotExists(t *testing.T, recorder *recorder.Recorder, url stri
 	assert.NotContains(t, userNames(users), generatedUser)
 }
 
-func teardownUserFromDatabase(t *testing.T, recorder *recorder.Recorder, db *RedisEnterpriseDB, generatedUser string) {
-
+func teardownUserFromDatabase(t *testing.T, recorder *recorder.Recorder, db *redisEnterpriseDB, generatedUser string) {
+	t.Helper()
 	dbtesting.AssertDeleteUser(t, db, dbplugin.DeleteUserRequest{
 		Username: generatedUser,
 	})

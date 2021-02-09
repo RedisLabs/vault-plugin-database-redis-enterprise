@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -100,10 +101,13 @@ func TestRedisEnterpriseDB_NewUser_Detect_Errors_Cluster(t *testing.T) {
 		db := setupRedisEnterpriseDB(t, "", false, recorder)
 
 		for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}} {
-			createReq := newUserRequest(spec[0], spec[1])
 
-			_, err := db.NewUser(context.Background(), createReq)
-			assert.Errorf(t, err, "Failed to detect NewUser (cluster) error with role (%s) and acl (%s)", spec[0], spec[1])
+			t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
+				createReq := newUserRequest(spec[0], spec[1])
+
+				_, err := db.NewUser(context.Background(), createReq)
+				assert.Errorf(t, err, "Failed to detect NewUser (cluster) error with role (%s) and acl (%s)", spec[0], spec[1])
+			})
 		}
 	})
 }
@@ -115,10 +119,13 @@ func TestRedisEnterpriseDB_NewUser_Detect_Errors_With_Database_Without_ACL(t *te
 		db := setupRedisEnterpriseDB(t, database, false, recorder)
 
 		for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}, {"garbage", ""}} {
-			createReq := newUserRequest(spec[0], spec[1])
 
-			_, err := db.NewUser(context.Background(), createReq)
-			assert.Errorf(t, err, "Failed to detect NewUser (database, no acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
+			t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
+				createReq := newUserRequest(spec[0], spec[1])
+
+				_, err := db.NewUser(context.Background(), createReq)
+				assert.Errorf(t, err, "Failed to detect NewUser (database, no acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
+			})
 		}
 	})
 }
@@ -130,10 +137,13 @@ func TestRedisEnterpriseDB_NewUser_Detect_Errors_With_Database_With_ACL(t *testi
 		db := setupRedisEnterpriseDB(t, database, true, recorder)
 
 		for _, spec := range [][]string{{"", ""}, {"", "garbage"}} {
-			createReq := newUserRequest(spec[0], spec[1])
 
-			_, err := db.NewUser(context.Background(), createReq)
-			assert.Errorf(t, err, "Failed to detect NewUser (database, acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
+			t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
+				createReq := newUserRequest(spec[0], spec[1])
+
+				_, err := db.NewUser(context.Background(), createReq)
+				assert.Errorf(t, err, "Failed to detect NewUser (database, acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
+			})
 		}
 	})
 }

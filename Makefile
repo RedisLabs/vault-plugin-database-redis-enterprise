@@ -25,8 +25,9 @@ fmtcheck: $(go_files)
 test:
 	RS_API_URL=https://localhost:9443 RS_USERNAME=go-vcr RS_PASSWORD=unused RS_DB=mydb go test -v ./...
 
+# `-count=1` is required when running against a 'real' database, otherwise Go will use the cached result of the tests being run instead
 test-acc:
-	RS_DISABLE_FIXTURES=true RS_API_URL=$(TEST_DB_URL) RS_USERNAME=$(TEST_USERNAME) RS_PASSWORD=$(TEST_PASSWORD) RS_DB=$(TEST_DB_NAME) go test -v ./...
+	RS_DISABLE_FIXTURES=true RS_API_URL=$(TEST_DB_URL) RS_USERNAME=$(TEST_USERNAME) RS_PASSWORD=$(TEST_PASSWORD) RS_DB=$(TEST_DB_NAME) go test -v -count=1 ./...
 
 bin/vault-plugin-database-redisenterprise: $(go_files)
 	go build -trimpath -o ./bin/vault-plugin-database-redisenterprise ./cmd/vault-plugin-database-redisenterprise
@@ -39,6 +40,7 @@ build: vet fmtcheck bin/vault-plugin-database-redisenterprise_linux_amd64 bin/va
 start-docker:
 	cd bootstrap && docker-compose up --detach
 	./bootstrap/redis-setup.sh -u $(TEST_USERNAME) -p $(TEST_PASSWORD) -db $(TEST_DB_NAME)
+	# UI available at https://localhost:8443/
 
 configure-docker: bin/vault-plugin-database-redisenterprise_linux_amd64
 	cd bootstrap && docker-compose exec -e VAULT_ADDR=http://localhost:8200 v vault login root

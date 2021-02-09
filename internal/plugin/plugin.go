@@ -2,12 +2,11 @@ package plugin
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/version"
@@ -20,16 +19,19 @@ import (
 const redisEnterpriseTypeName = "redisenterprise"
 
 // Verify interface is implemented
-var _ dbplugin.Database = (*RedisEnterpriseDB)(nil)
+var _ dbplugin.Database = (*redisEnterpriseDB)(nil)
 
-// Our database datastructure only holds the credentials. We have no connection
+// Our database data structure only holds the credentials. We have no connection
 // to maintain as we're just manipulating the cluster via the REST API.
-type RedisEnterpriseDB struct {
+type redisEnterpriseDB struct {
 	config           config
 	logger           hclog.Logger
 	client           *sdk.Client
-	simpleClient     *SimpleRESTClient
 	generateUsername func(string, string) (string, error)
+
+	// databaseRolePermissions is used to attempt to avoid buried writes with multiple updates to the database
+	// permissions at the same time, although something may still be updating the database at the same time.
+	databaseRolePermissions *sync.Mutex
 }
 
 func New() (dbplugin.Database, error) {
@@ -42,37 +44,34 @@ func New() (dbplugin.Database, error) {
 	})
 
 	generateUsername := func(displayName string, roleName string) (string, error) {
+		// Note that the username is used when generating a role, so the maximum length of the username must allow
+		// space for a database name (up to 63 characters) and a hyphen (maximum username length supported by Redis
+		// is 256)
 		return credsutil.GenerateUsername(
 			credsutil.DisplayName(displayName, 50),
 			credsutil.RoleName(roleName, 50),
-			credsutil.MaxLength(256),
+			credsutil.MaxLength(192),
 			credsutil.ToLower(),
 		)
 	}
 	client := sdk.NewClient()
 
-	simpleClient := SimpleRESTClient{
-		RoundTripper: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	db := newRedis(logger, client, &simpleClient, generateUsername)
+	db := newRedis(logger, client, generateUsername)
 	dbType := dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
 	return dbType, nil
 }
 
-func newRedis(logger hclog.Logger, client *sdk.Client, simpleClient *SimpleRESTClient, generateUsername func(string, string) (string, error)) *RedisEnterpriseDB {
-	return &RedisEnterpriseDB{
-		logger:           logger,
-		generateUsername: generateUsername,
-		client:           client,
-		simpleClient:     simpleClient,
+func newRedis(logger hclog.Logger, client *sdk.Client, generateUsername func(string, string) (string, error)) *redisEnterpriseDB {
+	return &redisEnterpriseDB{
+		logger:                  logger,
+		generateUsername:        generateUsername,
+		client:                  client,
+		databaseRolePermissions: &sync.Mutex{},
 	}
 }
 
 // SecretVaults returns the configuration information with the password masked
-func (r *RedisEnterpriseDB) secretValues() map[string]string {
+func (r *redisEnterpriseDB) secretValues() map[string]string {
 
 	// mask secret values in the configuration
 	return map[string]string{
@@ -82,7 +81,7 @@ func (r *RedisEnterpriseDB) secretValues() map[string]string {
 
 // Initialize copies the configuration information and does a GET on /v1/cluster
 // to ensure the cluster is reachable
-func (r *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
+func (r *redisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
 
 	r.logger.Info("initialising plugin", "version", version.Version, "commit", version.GitCommit)
 
@@ -101,12 +100,11 @@ func (r *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Initial
 		return dbplugin.InitializeResponse{}, errors.New("password is required")
 	}
 	// Check optional fields
-	if !r.config.hasDatabase() && r.config.hasFeature("acl_only") {
+	if !r.config.hasDatabase() && r.config.supportAclOnly() {
 		return dbplugin.InitializeResponse{}, errors.New("the acl_only feature cannot be enabled if there is no database specified")
 	}
 
 	r.client.Initialise(r.config.Url, r.config.Username, r.config.Password)
-	r.simpleClient.Initialise(r.config.Url, r.config.Username, r.config.Password)
 
 	// Verify the connection to the database if requested.
 	if req.VerifyConnection {
@@ -130,11 +128,11 @@ func (r *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.Initial
 	return response, nil
 }
 
-func (r *RedisEnterpriseDB) Type() (string, error) {
+func (r *redisEnterpriseDB) Type() (string, error) {
 	return redisEnterpriseTypeName, nil
 }
 
-func (r *RedisEnterpriseDB) Close() error {
+func (r *redisEnterpriseDB) Close() error {
 	return r.client.Close()
 }
 
@@ -162,4 +160,8 @@ func (c config) hasFeature(name string) bool {
 	}
 
 	return false
+}
+
+func (c config) supportAclOnly() bool {
+	return c.hasFeature("acl_only")
 }

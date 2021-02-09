@@ -208,7 +208,7 @@ interactions:
     headers:
       Content-Type:
       - application/json;charset=utf-8
-    url: https://localhost:9443//v1/redis_acls
+    url: https://localhost:9443/v1/redis_acls
     method: GET
   response:
     body: |-
