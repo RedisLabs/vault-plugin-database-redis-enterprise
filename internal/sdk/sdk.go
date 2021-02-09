@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -33,7 +34,7 @@ func NewClient() *Client {
 }
 
 func (c *Client) Initialise(url string, username string, password string) {
-	c.url = url
+	c.url = strings.TrimSuffix(url, "/")
 	c.username = username
 	c.password = password
 }
