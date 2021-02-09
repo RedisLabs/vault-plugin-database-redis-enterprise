@@ -1,9 +1,10 @@
-package vault_plugin_database_redisenterprise
+package plugin
 
 import (
-	"github.com/dnaeon/go-vcr/recorder"
 	"testing"
 	"time"
+
+	"github.com/dnaeon/go-vcr/recorder"
 
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 	dbtesting "github.com/hashicorp/vault/sdk/database/dbplugin/v5/testing"
@@ -13,9 +14,7 @@ func TestRedisEnterpriseDB_DeleteUser_With_database(t *testing.T) {
 
 	record(t, "DeleteUser_With_database", func(t *testing.T, recorder *recorder.Recorder) {
 
-		enableACL := false
-
-		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
+		db := setupRedisEnterpriseDB(t, database, false, recorder)
 
 		createReq := dbplugin.NewUserRequest{
 			UsernameConfig: dbplugin.UsernameMetadata{
@@ -44,10 +43,7 @@ func TestRedisEnterpriseDB_DeleteUser_Without_database(t *testing.T) {
 
 	record(t, "DeleteUser_Without_database", func(t *testing.T, recorder *recorder.Recorder) {
 
-		database := ""
-		enableACL := false
-
-		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
+		db := setupRedisEnterpriseDB(t, "", false, recorder)
 
 		createReq := dbplugin.NewUserRequest{
 			UsernameConfig: dbplugin.UsernameMetadata{

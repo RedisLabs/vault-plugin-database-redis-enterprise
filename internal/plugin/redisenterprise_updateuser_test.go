@@ -1,9 +1,13 @@
-package vault_plugin_database_redisenterprise
+package plugin
 
 import (
 	"context"
+
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
 	"github.com/dnaeon/go-vcr/recorder"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"testing"
 	"time"
 
@@ -14,10 +18,7 @@ import (
 func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 	record(t, "UpdateUser_With_New_Password", func(t *testing.T, recorder *recorder.Recorder) {
 
-		database := ""
-		enableACL := false
-
-		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
+		db := setupRedisEnterpriseDB(t, "", false, recorder)
 
 		createReq := dbplugin.NewUserRequest{
 			UsernameConfig: dbplugin.UsernameMetadata{
@@ -38,9 +39,7 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 		client.Initialise(url, username, password)
 
 		beforeUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		// Wait a bit so the password updated date will be different
 		time.Sleep(2 * time.Second)
@@ -55,13 +54,9 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 		dbtesting.AssertUpdateUser(t, db, updateReq)
 
 		afterUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if beforeUpdate.PasswordIssueDate == afterUpdate.PasswordIssueDate {
-			t.Errorf("password hasn't been updated")
-		}
+		assert.NotEqual(t, beforeUpdate.PasswordIssueDate, afterUpdate.PasswordIssueDate)
 
 		teardownUserFromDatabase(t, recorder, db, userResponse.Username)
 	})
