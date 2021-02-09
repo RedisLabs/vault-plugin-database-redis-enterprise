@@ -22,11 +22,8 @@ type Client struct {
 // The timeout for the REST client requests.
 const timeout = 60
 
-func NewClient(url string, username string, password string) *Client {
+func NewClient() *Client {
 	return &Client{
-		url:      strings.TrimSuffix(url, "/"),
-		username: username,
-		password: password,
 		Client: &http.Client{
 			Timeout: timeout * time.Second,
 			Transport: &http.Transport{
@@ -34,6 +31,12 @@ func NewClient(url string, username string, password string) *Client {
 			},
 		},
 	}
+}
+
+func (c *Client) Initialise(url string, username string, password string) {
+	c.url = strings.TrimSuffix(url, "/")
+	c.username = username
+	c.password = password
 }
 
 func (c *Client) Close() error {

@@ -3,130 +3,103 @@ package vault_plugin_database_redisenterprise
 import (
 	"context"
 	"fmt"
+	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
+	"github.com/dnaeon/go-vcr/recorder"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 	dbtesting "github.com/hashicorp/vault/sdk/database/dbplugin/v5/testing"
 )
 
-func TestPlugin(t *testing.T) {
-
-	url := os.Getenv("RS_API_URL")
-	username := os.Getenv("RS_USERNAME")
-	password := os.Getenv("RS_PASSWORD")
-	db := os.Getenv("RS_DB")
-
-	t.Run("Initialize", func(t *testing.T) { testRedisEnterpriseDBInitialize(t, url, username, password, "") })
-	t.Run("Initialize - database", func(t *testing.T) { testRedisEnterpriseDBInitialize(t, url, username, password, db) })
-	t.Run("Initialize - errors", func(t *testing.T) { testRedisEnterpriseDBInitializeErrors(t, url, username, password, db) })
-	t.Run("NewUser", func(t *testing.T) { testRedisEnterpriseNewUser(t, url, username, password, "", false) })
-	t.Run("NewUser - database", func(t *testing.T) { testRedisEnterpriseNewUser(t, url, username, password, db, false) })
-	t.Run("NewUser - acl", func(t *testing.T) { testRedisEnterpriseNewUser(t, url, username, password, db, true) })
-	t.Run("NewUser - errors", func(t *testing.T) { testRedisEnterpriseNewUserErrors(t, url, username, password, db) })
-	t.Run("UpdateUser change password", func(t *testing.T) { testRedisEnterpriseUpdateUserChangePassword(t, url, username, password) })
-	t.Run("DeleteUser", func(t *testing.T) { testRedisEnterpriseDeleteUser(t, url, username, password, "") })
-	t.Run("DeleteUser - database", func(t *testing.T) { testRedisEnterpriseDeleteUser(t, url, username, password, db) })
-
-}
+var (
+	url      = os.Getenv("RS_API_URL")
+	username = os.Getenv("RS_USERNAME")
+	password = os.Getenv("RS_PASSWORD")
+	database = os.Getenv("RS_DB")
+)
 
 const context_timeout = 2 * time.Second
 
-func initDatabaseRequest(url string, username string, password string, database string, enableACL bool) dbplugin.InitializeRequest {
-	config := map[string]interface{}{
-		"url":      url,
-		"username": username,
-		"password": password,
+func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *RedisEnterpriseDB {
+
+	request := initializeRequest(url, username, password, database, enableACL)
+
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+
+	simpleClient := SimpleRESTClient{
+		RoundTripper: recorder,
 	}
 
-	if len(database) > 0 {
-		config["database"] = database
-	}
+	db := newRedis(hclog.Default(),
+		client,
+		&simpleClient,
+		func(displayName string, roleName string) (string, error) {
+			return displayName + roleName, nil
+		})
 
-	if enableACL {
-		config["features"] = "acl_only"
-	}
-
-	req := dbplugin.InitializeRequest{
-		Config:           config,
-		VerifyConnection: true,
-	}
-
-	return req
-}
-
-func initDatabase(t *testing.T, url string, username string, password string, database string, enableACL bool) *RedisEnterpriseDB {
-	req := initDatabaseRequest(url, username, password, database, enableACL)
-
-	db := newRedis(hclog.Default())
-
-	dbtesting.AssertInitialize(t, db, req)
-
+	dbtesting.AssertInitialize(t, db, request)
 	return db
 }
 
-func testRedisEnterpriseDBInitialize(t *testing.T, url string, username string, password string, database string) {
-	t.Log("Testing initialize - no TLS")
+func TestRedisEnterpriseDB_Initialize_Without_Database(t *testing.T) {
 
-	db := initDatabase(t, url, username, password, database, false)
+	record(t, "Initialize_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
-	err := db.Close()
-	if err != nil {
-		t.Fatalf("Cannot close database: %s", err)
-	}
+		database := ""
+		enableACL := false
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
 
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Cannot close database: %s", err)
+		}
+
+	})
 }
 
-func testRedisEnterpriseDBInitializeErrors(t *testing.T, url string, username string, password string, database string) {
-	t.Log("Testing initialize - errors")
+func TestRedisEnterpriseDB_Initialize_With_Database(t *testing.T) {
 
-	t.Helper()
+	record(t, "Initialize_With_Database", func(t *testing.T, recorder *recorder.Recorder) {
 
-	req := initDatabaseRequest(url, username, password, "", true)
+		enableACL := false
+		db := setupRedisEnterpriseDB(t, database, enableACL, recorder)
+
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("Cannot close database: %s", err)
+		}
+
+	})
+}
+
+func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
+
+	database := ""
+	enableACL := true
+
+	request := initializeRequest(url, username, password, database, enableACL)
+	db := newRedis(hclog.Default(), nil, nil, func(displayName string, roleName string) (string, error) {
+		return displayName + roleName, nil
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), context_timeout)
 	defer cancel()
 
-	db := newRedis(hclog.Default())
-
-	_, err := db.Initialize(ctx, req)
+	_, err := db.Initialize(ctx, request)
 	if err == nil {
 		t.Fatal("Failed to detect no database with acl_only")
 	}
 }
 
-func testRedisEnterpriseNewUser(t *testing.T, url string, username string, password string, database string, useACL bool) {
-	t.Log("Testing new user")
+func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
 
-	db := initDatabase(t, url, username, password, database, useACL)
-
-	createReq := dbplugin.NewUserRequest{
-		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "tester",
-			RoleName:    "test",
-		},
-		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"DB Member"}`},
-		},
-		Password:   "testing",
-		Expiration: time.Now().Add(time.Minute),
-	}
-
-	if useACL {
-		createReq.Statements.Commands = []string{`{"acl":"Not Dangerous"}`}
-	}
-
-	res := dbtesting.AssertNewUser(t, db, createReq)
-
-	assertUserExists(t, url, username, password, res.Username)
-
-}
-
-func assertUserExists(t *testing.T, url string, username string, password string, generatedUser string) {
-	client := sdk.NewClient(url, username, password)
 	users, err := client.ListUsers(context.TODO())
 	if err != nil {
 		t.Fatal(err)
@@ -141,17 +114,24 @@ func assertUserExists(t *testing.T, url string, username string, password string
 	t.Errorf("unable to find user %s", generatedUser)
 }
 
-func assertUserDoesNotExists(t *testing.T, url string, username string, password string, generatedUser string) {
-	client := sdk.NewClient(url, username, password)
-	users, err := client.ListUsers(context.TODO())
-	if err != nil {
-		t.Fatal(err)
+func initializeRequest(url string, username string, password string, database string, enableACL bool) dbplugin.InitializeRequest {
+	config := map[string]interface{}{
+		"url":      url,
+		"username": username,
+		"password": password,
 	}
 
-	for _, u := range users {
-		if u.Name == generatedUser {
-			t.Errorf("found user %s", generatedUser)
-		}
+	if len(database) > 0 {
+		config["database"] = database
+	}
+
+	if enableACL {
+		config["features"] = "acl_only"
+	}
+
+	return dbplugin.InitializeRequest{
+		Config:           config,
+		VerifyConnection: true,
 	}
 }
 
@@ -178,130 +158,27 @@ func newUserRequest(role string, acl string) dbplugin.NewUserRequest {
 	return createReq
 }
 
-func testRedisEnterpriseNewUserErrors(t *testing.T, url string, username string, password string, database string) {
-	t.Log("Testing new user - errors")
-	t.Helper()
+func assertUserDoesNotExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
 
-	cluster := initDatabase(t, url, username, password, "", false)
-
-	for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}} {
-		createReq := newUserRequest(spec[0], spec[1])
-
-		ctx, cancel := context.WithTimeout(context.Background(), context_timeout)
-		defer cancel()
-
-		_, err := cluster.NewUser(ctx, createReq)
-		if err == nil {
-			t.Fatalf("Failed to detect NewUser (cluster) error with role (%s) and acl (%s)", spec[0], spec[1])
-		}
-
-	}
-
-	db := initDatabase(t, url, username, password, database, false)
-
-	for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}, {"garbage", ""}} {
-		createReq := newUserRequest(spec[0], spec[1])
-
-		ctx, cancel := context.WithTimeout(context.Background(), context_timeout)
-		defer cancel()
-
-		_, err := db.NewUser(ctx, createReq)
-		if err == nil {
-			t.Fatalf("Failed to detect NewUser (database, no acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
-		}
-
-	}
-
-	db_allow_acl := initDatabase(t, url, username, password, database, true)
-
-	for _, spec := range [][]string{{"", ""}, {"", "garbage"}} {
-		createReq := newUserRequest(spec[0], spec[1])
-
-		ctx, cancel := context.WithTimeout(context.Background(), context_timeout)
-		defer cancel()
-
-		_, err := db_allow_acl.NewUser(ctx, createReq)
-		if err == nil {
-			t.Fatalf("Failed to detect NewUser (database, acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
-		}
-
-	}
-
-}
-
-func testRedisEnterpriseUpdateUserChangePassword(t *testing.T, url string, username string, password string) {
-	t.Log("Testing user password change")
-
-	db := initDatabase(t, url, username, password, "", false)
-
-	createReq := dbplugin.NewUserRequest{
-		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "tester",
-			RoleName:    "test",
-		},
-		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"DB Member"}`},
-		},
-		Password:   "testing",
-		Expiration: time.Now().Add(time.Minute),
-	}
-
-	userResponse := dbtesting.AssertNewUser(t, db, createReq)
-
-	client := sdk.NewClient(url, username, password)
-	beforeUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
+	users, err := client.ListUsers(context.TODO())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Wait a bit so the password updated date will be different
-	time.Sleep(2 * time.Second)
-
-	updateReq := dbplugin.UpdateUserRequest{
-		Username: userResponse.Username,
-		Password: &dbplugin.ChangePassword{
-			NewPassword: "xyzzyxyzzy",
-		},
+	for _, u := range users {
+		if u.Name == generatedUser {
+			t.Errorf("found user %s", generatedUser)
+		}
 	}
-
-	dbtesting.AssertUpdateUser(t, db, updateReq)
-
-	afterUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if beforeUpdate.PasswordIssueDate == afterUpdate.PasswordIssueDate {
-		t.Errorf("password hasn't been updated")
-	}
-
 }
 
-func testRedisEnterpriseDeleteUser(t *testing.T, url string, username string, password string, database string) {
-	t.Log("Testing delete user")
+func teardownUserFromDatabase(t *testing.T, recorder *recorder.Recorder, db *RedisEnterpriseDB, generatedUser string) {
 
-	db := initDatabase(t, url, username, password, database, false)
-
-	createReq := dbplugin.NewUserRequest{
-		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "tester",
-			RoleName:    "test",
-		},
-		Statements: dbplugin.Statements{
-			Commands: []string{`{"role":"DB Member"}`},
-		},
-		Password:   "testing",
-		Expiration: time.Now().Add(time.Minute),
-	}
-
-	userResponse := dbtesting.AssertNewUser(t, db, createReq)
-
-	deleteReq := dbplugin.DeleteUserRequest{
-		Username: userResponse.Username,
-	}
-
-	dbtesting.AssertDeleteUser(t, db, deleteReq)
-
-	assertUserDoesNotExists(t, url, username, password, userResponse.Username)
-
+	dbtesting.AssertDeleteUser(t, db, dbplugin.DeleteUserRequest{
+		Username: generatedUser,
+	})
+	assertUserDoesNotExists(t, recorder, url, username, password, generatedUser)
 }
