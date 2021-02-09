@@ -1,4 +1,4 @@
-package vault_plugin_database_redisenterprise
+package plugin
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 	"github.com/hashicorp/vault/sdk/database/helper/credsutil"
+	"github.com/mitchellh/mapstructure"
 )
 
 const redisEnterpriseTypeName = "redisenterprise"
@@ -157,7 +158,7 @@ func findItem(client SimpleRESTClient, path string, nameProperty string, idPrope
 	var v interface{}
 	err := client.get(path, &v)
 	if err != nil {
-		return 0, false, fmt.Errorf("cannot get list at %s: %s", path, err)
+		return 0, false, fmt.Errorf("cannot get list at %s: %w", path, err)
 	}
 	var uid float64
 	found := false
@@ -186,7 +187,7 @@ func findRole(client SimpleRESTClient, roleName string) (float64, string, bool, 
 	var v interface{}
 	err := client.get("/v1/roles", &v)
 	if err != nil {
-		return 0, "", false, fmt.Errorf("cannot get role list: %s", err)
+		return 0, "", false, fmt.Errorf("cannot get role list: %w", err)
 	}
 	var uid float64
 	var management string
@@ -216,7 +217,7 @@ var _ dbplugin.Database = (*RedisEnterpriseDB)(nil)
 // Our database datastructure only holds the credentials. We have no connection
 // to maintain as we're just manipulating the cluster via the REST API.
 type RedisEnterpriseDB struct {
-	Config           map[string]interface{}
+	config           config
 	logger           hclog.Logger
 	client           *sdk.Client
 	simpleClient     *SimpleRESTClient
@@ -262,91 +263,54 @@ func newRedis(logger hclog.Logger, client *sdk.Client, simpleClient *SimpleRESTC
 	}
 }
 
-func (redb *RedisEnterpriseDB) hasFeature(name string) bool {
-	features, hasFeatures := redb.Config["features"].(string)
-	if !hasFeatures {
-		return false
-	}
-
-	for _, value := range strings.Split(features, ",") {
-		if value == name {
-			return true
-		}
-	}
-
-	return false
-}
-
 // SecretVaults returns the configuration information with the password masked
-func (redb *RedisEnterpriseDB) secretValues() map[string]string {
+func (r *RedisEnterpriseDB) secretValues() map[string]string {
 
 	// mask secret values in the configuration
-	replacements := make(map[string]string)
-	for _, secretName := range []string{"password"} {
-		vIfc, found := redb.Config[secretName]
-		if !found {
-			continue
-		}
-		secretVal, ok := vIfc.(string)
-		if !ok {
-			continue
-		}
-		replacements[secretVal] = "[" + secretName + "]"
+	return map[string]string{
+		r.config.Password: "[password]",
 	}
-	return replacements
 }
 
 // Initialize copies the configuration information and does a GET on /v1/cluster
 // to ensure the cluster is reachable
-func (redb *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
+func (r *RedisEnterpriseDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
 
-	redb.logger.Info("initialising plugin", "version", version.Version, "commit", version.GitCommit)
+	r.logger.Info("initialising plugin", "version", version.Version, "commit", version.GitCommit)
 
-	redb.Config = make(map[string]interface{})
+	if err := mapstructure.WeakDecode(req.Config, &r.config); err != nil {
+		return dbplugin.InitializeResponse{}, err
+	}
 
 	// Ensure we have the required fields
-	for _, fieldName := range []string{"username", "password", "url"} {
-		raw, ok := req.Config[fieldName]
-		if !ok {
-			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q is required`, fieldName)
-		}
-		if _, ok := raw.(string); !ok {
-			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
-		}
-		redb.Config[fieldName] = raw
+	if r.config.Url == "" {
+		return dbplugin.InitializeResponse{}, errors.New("url is required")
+	}
+	if r.config.Username == "" {
+		return dbplugin.InitializeResponse{}, errors.New("username is required")
+	}
+	if r.config.Password == "" {
+		return dbplugin.InitializeResponse{}, errors.New("password is required")
 	}
 	// Check optional fields
-	for _, fieldName := range []string{"database", "features"} {
-		raw, ok := req.Config[fieldName]
-		if !ok {
-			continue
-		}
-		if _, ok := raw.(string); !ok {
-			return dbplugin.InitializeResponse{}, fmt.Errorf(`%q must be a string value`, fieldName)
-		}
-		redb.Config[fieldName] = raw
-	}
-
-	database, hasDatabase := redb.Config["database"].(string)
-
-	if !hasDatabase && redb.hasFeature("acl_only") {
+	if !r.config.hasDatabase() && r.config.hasFeature("acl_only") {
 		return dbplugin.InitializeResponse{}, errors.New("the acl_only feature cannot be enabled if there is no database specified")
 	}
 
-	redb.client.Initialise(req.Config["url"].(string), req.Config["username"].(string), req.Config["password"].(string))
-	redb.simpleClient.Initialise(req.Config["url"].(string), req.Config["username"].(string), req.Config["password"].(string))
+	r.client.Initialise(r.config.Url, r.config.Username, r.config.Password)
+	r.simpleClient.Initialise(r.config.Url, r.config.Username, r.config.Password)
 
 	// Verify the connection to the database if requested.
 	if req.VerifyConnection {
-		_, err := redb.client.GetCluster(ctx)
+		_, err := r.client.GetCluster(ctx)
 		if err != nil {
-			return dbplugin.InitializeResponse{}, fmt.Errorf("could not verify connection to cluster: %s", err)
+			return dbplugin.InitializeResponse{}, fmt.Errorf("could not verify connection to cluster: %w", err)
 		}
 
-		if hasDatabase {
-			_, err := redb.client.FindDatabaseByName(ctx, database)
+		if r.config.hasDatabase() {
+			_, err := r.client.FindDatabaseByName(ctx, r.config.Database)
 			if err != nil {
-				return dbplugin.InitializeResponse{}, fmt.Errorf("could not verify connection to cluster: %s", err)
+				return dbplugin.InitializeResponse{}, fmt.Errorf("could not verify connection to cluster: %w", err)
 			}
 		}
 	}
@@ -368,7 +332,7 @@ func updateRolePermissions(client SimpleRESTClient, dbid float64, rolesPermissio
 	}
 	update_bdb_roles_permissions_body, err := json.Marshal(update_bdb_roles_permissions)
 	if err != nil {
-		return fmt.Errorf("Cannot marshal update database role_permission request: %s", err)
+		return fmt.Errorf("cannot marshal update database role_permission request: %w", err)
 	}
 	//fmt.Println(string(update_bdb_roles_permissions_body))
 
@@ -381,14 +345,14 @@ func updateRolePermissions(client SimpleRESTClient, dbid float64, rolesPermissio
 		if statusCode == http.StatusConflict {
 			time.Sleep(500 * time.Millisecond)
 		} else if err != nil {
-			return fmt.Errorf("Cannot update database %.0f roles_permissions: %s\n%s", dbid, err, string(error_response))
+			return fmt.Errorf("cannot update database %.0f roles_permissions: %w\n%s", dbid, err, string(error_response))
 		} else {
 			success = true
 		}
 	}
 
 	if !success {
-		return fmt.Errorf("Cannot update database %.0f roles_permissions - too many retries after conflicts (409).", dbid)
+		return fmt.Errorf("cannot update database %.0f roles_permissions - too many retries after conflicts (409)", dbid)
 	}
 
 	return nil
@@ -409,80 +373,66 @@ func updateRolePermissions(client SimpleRESTClient, dbid float64, rolesPermissio
 // }
 // The acl name is must exist the cluster before the user can be created.
 // The acl option can only be used with a database.
-func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error) {
-	redb.logger.Info("new user", "display", req.UsernameConfig.DisplayName, "role", req.UsernameConfig.RoleName, "statements", req.Statements.Commands)
+func (r *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error) {
+	r.logger.Debug("new user", "display", req.UsernameConfig.DisplayName, "role", req.UsernameConfig.RoleName, "statements", req.Statements.Commands)
 
-	if len(req.Statements.Commands) < 1 {
-		return dbplugin.NewUserResponse{}, errors.New("no creation statements were provided. The groups are not defined")
+	if len(req.Statements.Commands) != 1 {
+		return dbplugin.NewUserResponse{}, errors.New("one creation statement is required")
 	}
 
-	var v interface{}
-	err := json.Unmarshal([]byte(req.Statements.Commands[0]), &v)
-
-	if err != nil {
+	var s statement
+	if err := json.Unmarshal([]byte(req.Statements.Commands[0]), &s); err != nil {
 		return dbplugin.NewUserResponse{}, errors.New("cannot parse JSON for db role")
 	}
 
-	m := v.(map[string]interface{})
-	role, hasRole := m["role"].(string)
-	acl, hasACL := m["acl"].(string)
-	if !hasRole && !hasACL {
+	if !s.hasRole() && !s.hasACL() {
 		return dbplugin.NewUserResponse{}, fmt.Errorf("no 'role' or 'acl' in creation statement for %s", req.UsernameConfig.RoleName)
 	}
 
 	// Generate a username which also includes random data (20 characters) and current epoch (11 characters) and the prefix 'v'
-	username, err := redb.generateUsername(req.UsernameConfig.DisplayName, req.UsernameConfig.RoleName)
+	username, err := r.generateUsername(req.UsernameConfig.DisplayName, req.UsernameConfig.RoleName)
 	if err != nil {
-		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot generate username: %s", err)
+		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot generate username: %w", err)
 	}
 
-	if hasRole {
-		redb.logger.Info("found role", "role", role)
-	}
-	if hasACL {
-		fmt.Printf("acl: %s\n", acl)
-	}
-
-	if !hasRole && hasACL && !redb.hasFeature("acl_only") {
+	if !s.hasRole() && s.hasACL() && !r.config.hasFeature("acl_only") {
 		return dbplugin.NewUserResponse{}, fmt.Errorf("the ACL only feature has not been enabled for %s. You must specify a role name", req.UsernameConfig.RoleName)
 	}
 
-	database, hasDatabase := redb.Config["database"].(string)
-
-	if !hasDatabase && hasACL {
+	if !r.config.hasDatabase() && s.hasACL() {
 		return dbplugin.NewUserResponse{}, fmt.Errorf("ACL cannot be used when the database has not been specified for %s", req.UsernameConfig.RoleName)
 	}
 
-	client := redb.simpleClient
+	client := r.simpleClient
 
 	var rid int = -1
 	var role_management string
 	var aid float64 = -1
 
-	if hasRole {
-		role, err := redb.client.FindRoleByName(ctx, role)
+	if s.hasRole() {
+		role, err := r.client.FindRoleByName(ctx, s.Role)
 		if err != nil {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("cannot find role: %s", err)
+			return dbplugin.NewUserResponse{}, err
 		}
 
 		rid = role.UID
 		role_management = role.Management
 	}
 
-	if hasACL {
+	if s.hasACL() {
 		// get the ACL id
 		var found bool
-		aid, found, err = findACL(*client, acl)
+		aid, found, err = findACL(*client, s.ACL)
 		if err != nil {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot get acls: %s", err)
+			return dbplugin.NewUserResponse{}, fmt.Errorf("cannot get acls: %w", err)
 		}
 		if !found {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot find acl: %s", acl)
+			return dbplugin.NewUserResponse{}, fmt.Errorf("cannot find acl: %s", s.ACL)
 		}
 		role_management = "db_member"
 	}
 
-	if hasDatabase {
+	if r.config.hasDatabase() {
 
 		// If we have a database we need to:
 		// 1. Retrieve the DB and role ids
@@ -490,15 +440,15 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 		// 3. Create a new role for the user
 		// 4. Bind the new role to the same ACL in the database
 
-		db, err := redb.client.FindDatabaseByName(ctx, database)
+		db, err := r.client.FindDatabaseByName(ctx, r.config.Database)
 		if err != nil {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("cannot find database: %s", err)
+			return dbplugin.NewUserResponse{}, err
 		}
 
 		// Find the referenced role binding in the role
 		var bound_aid float64 = -1
 
-		if hasRole {
+		if s.hasRole() {
 			b := db.FindPermissionForRole(rid)
 			if b != nil {
 				bound_aid = float64(b.ACLUID)
@@ -506,40 +456,40 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 		}
 
 		// If the role specified without an ACL and not bound in the database, this is an error
-		if hasRole && bound_aid < 0 {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("database %s has no binding for role %s", database, role)
+		if s.hasRole() && bound_aid < 0 {
+			return dbplugin.NewUserResponse{}, fmt.Errorf("database %s has no binding for role %s", r.config.Database, s.Role)
 		}
 
 		// If the role and ACL are specified but unbound in the database, this is an error because it
 		// may cause escalation of privileges for other users with the same role already
-		if hasRole && hasACL && bound_aid < 0 {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has no binding for role %s", database, role)
+		if s.hasRole() && s.hasACL() && bound_aid < 0 {
+			return dbplugin.NewUserResponse{}, fmt.Errorf("database %s has no binding for role %s", r.config.Database, s.Role)
 		}
 
 		// If the role and ACL are specified but the binding in the database is different, this is an error
-		if hasRole && hasACL && bound_aid >= 0 && aid != bound_aid {
-			return dbplugin.NewUserResponse{}, fmt.Errorf("Database %s has a different binding for role %s", database, role)
+		if s.hasRole() && s.hasACL() && bound_aid >= 0 && aid != bound_aid {
+			return dbplugin.NewUserResponse{}, fmt.Errorf("database %s has a different binding for role %s", r.config.Database, s.Role)
 		}
 
 		// If only the ACL is specified, create a new role & role binding
-		if !hasRole && hasACL {
-			vault_role := database + "-" + username
+		if !s.hasRole() && s.hasACL() {
+			vault_role := r.config.Database + "-" + username
 			create_role := map[string]interface{}{
 				"name":       vault_role,
 				"management": role_management,
 			}
 			create_role_body, err := json.Marshal(create_role)
 			if err != nil {
-				return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot marshal create role request: %s", err)
+				return dbplugin.NewUserResponse{}, fmt.Errorf("cannot marshal create role request: %s", err)
 			}
 
 			create_role_response_raw, err := client.post("/v1/roles", create_role_body)
 			if err != nil {
-				return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot create role: %s", err)
+				return dbplugin.NewUserResponse{}, fmt.Errorf("cannot create role: %s", err)
 			}
 
 			var create_role_response interface{}
-			err = json.Unmarshal([]byte(create_role_response_raw), &create_role_response)
+			err = json.Unmarshal(create_role_response_raw, &create_role_response)
 			if err != nil {
 				return dbplugin.NewUserResponse{}, err
 			}
@@ -565,7 +515,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 			// Update the database
 			err = updateRolePermissions(*client, float64(db.UID), rolesPermissions)
 			if err != nil {
-				return dbplugin.NewUserResponse{}, fmt.Errorf("Cannot update role_permissions in database %s: %s", database, err)
+				return dbplugin.NewUserResponse{}, fmt.Errorf("cannot update role_permissions in database %s: %w", r.config.Database, err)
 			}
 
 		}
@@ -573,7 +523,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 	}
 
 	// Finally, create the user with the role
-	_, err = redb.client.CreateUser(ctx, sdk.CreateUser{
+	_, err = r.client.CreateUser(ctx, sdk.CreateUser{
 		Name:        username,
 		Password:    req.Password,
 		Roles:       []int{rid},
@@ -581,7 +531,7 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 		AuthMethod:  "regular",
 	})
 	if err != nil {
-		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot create user: %s", err)
+		return dbplugin.NewUserResponse{}, err
 	}
 
 	// TODO: we need to cleanup created roles if the user can't be created
@@ -590,28 +540,28 @@ func (redb *RedisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUser
 }
 
 // UpdateUser changes a user's password
-func (redb *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error) {
+func (r *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error) {
 	if req.Password == nil {
 		return dbplugin.UpdateUserResponse{}, nil
 	}
 
-	user, err := redb.client.FindUserByName(ctx, req.Username)
+	user, err := r.client.FindUserByName(ctx, req.Username)
 
 	if err != nil {
 		return dbplugin.UpdateUserResponse{}, fmt.Errorf("cannot find user %s: %w", req.Username, err)
 	}
 
-	redb.logger.Info("change password", "user", req.Username, "uid", user.UID)
+	r.logger.Debug("change password", "user", req.Username, "uid", user.UID)
 
-	if err := redb.client.UpdateUserPassword(ctx, user.UID, sdk.UpdateUser{Password: req.Password.NewPassword}); err != nil {
+	if err := r.client.UpdateUserPassword(ctx, user.UID, sdk.UpdateUser{Password: req.Password.NewPassword}); err != nil {
 		return dbplugin.UpdateUserResponse{}, fmt.Errorf("cannot change user password: %w", err)
 	}
 	return dbplugin.UpdateUserResponse{}, nil
 }
 
 // DeleteUser removes a user from the cluster entirely
-func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequest) (dbplugin.DeleteUserResponse, error) {
-	user, err := redb.client.FindUserByName(ctx, req.Username)
+func (r *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequest) (dbplugin.DeleteUserResponse, error) {
+	user, err := r.client.FindUserByName(ctx, req.Username)
 
 	if err != nil {
 		if _, ok := err.(*sdk.UserNotFoundError); ok {
@@ -619,28 +569,26 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 			// this is okay and return successfully.
 			return dbplugin.DeleteUserResponse{}, nil
 		}
-		return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot find user %s: %w", req.Username, err)
+		return dbplugin.DeleteUserResponse{}, err
 	}
 
-	redb.logger.Info("delete user", "username", req.Username, "uid", user.UID)
+	r.logger.Debug("delete user", "username", req.Username, "uid", user.UID)
 
-	if err := redb.client.DeleteUser(ctx, user.UID); err != nil {
+	if err := r.client.DeleteUser(ctx, user.UID); err != nil {
 		return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot delete user %s: %w", req.Username, err)
 	}
 
-	database, hasDatabase := redb.Config["database"].(string)
-
-	if hasDatabase {
-		client := redb.simpleClient
+	if r.config.hasDatabase() {
+		client := r.simpleClient
 		// If we have a database we need to there may be a generated
 		// role. If we find the generated role by name, we must also delete
 		// the generated role binding
 
 		// Find the role id of the potentially generated role
-		role := database + "-" + req.Username
+		role := r.config.Database + "-" + req.Username
 		rid, _, generatedRole, err := findRole(*client, role)
 		if err != nil {
-			return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get roles: %s", err)
+			return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot get roles: %w", err)
 		}
 
 		// If we found a role with the name, it was generated by this plugin
@@ -653,25 +601,25 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 			// 3. Delete the role
 
 			// Get the database id
-			dbid, found, err := findDatabase(*client, database)
+			dbid, found, err := findDatabase(*client, r.config.Database)
 			if err != nil {
-				return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get databases: %s", err)
+				return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot get databases: %s", err)
 			}
 			if !found {
-				return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot find database: %s", database)
+				return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot find database: %s", r.config.Database)
 			}
 
 			// Get the database information
 			var v interface{}
 			err = client.get(fmt.Sprintf("/v1/bdbs/%.0f", dbid), &v)
 			if err != nil {
-				return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot get database info: %s", err)
+				return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot get database info: %s", err)
 			}
 
 			// Find the role binding to ACL
 			rolesPermissions, found := v.(map[string]interface{})["roles_permissions"].([]interface{})
 			if !found {
-				return dbplugin.DeleteUserResponse{}, fmt.Errorf("Database information has no 'roles_permissions': %s", database)
+				return dbplugin.DeleteUserResponse{}, fmt.Errorf("database information has no 'roles_permissions': %s", r.config.Database)
 			}
 			found_acl := false
 			var position int
@@ -700,7 +648,7 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 
 					// Attempt to delete the generated role - we know this may fail
 					err = client.delete(fmt.Sprintf("/v1/roles/%.0f", rid))
-					return dbplugin.DeleteUserResponse{}, fmt.Errorf("User deleted but role and role binding cannot be removed - cannot update role_permissions in database %s: %s", database, err)
+					return dbplugin.DeleteUserResponse{}, fmt.Errorf("user deleted but role and role binding cannot be removed - cannot update role_permissions in database %s: %s", r.config.Database, err)
 				}
 
 			}
@@ -708,7 +656,7 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 			// Delete the generated role
 			err = client.delete(fmt.Sprintf("/v1/roles/%.0f", rid))
 			if err != nil {
-				return dbplugin.DeleteUserResponse{}, fmt.Errorf("Cannot delete role (%s,%.0f): %s", role, rid, err)
+				return dbplugin.DeleteUserResponse{}, fmt.Errorf("cannot delete role (%s,%.0f): %s", role, rid, err)
 			}
 
 		}
@@ -717,10 +665,49 @@ func (redb *RedisEnterpriseDB) DeleteUser(ctx context.Context, req dbplugin.Dele
 	return dbplugin.DeleteUserResponse{}, nil
 }
 
-func (redb *RedisEnterpriseDB) Type() (string, error) {
+func (r *RedisEnterpriseDB) Type() (string, error) {
 	return redisEnterpriseTypeName, nil
 }
 
-func (redb *RedisEnterpriseDB) Close() error {
-	return redb.client.Close()
+func (r *RedisEnterpriseDB) Close() error {
+	return r.client.Close()
+}
+
+type statement struct {
+	Role string `json:"role"`
+	ACL  string `json:"acl"`
+}
+
+func (s statement) hasRole() bool {
+	return s.Role != ""
+}
+
+func (s statement) hasACL() bool {
+	return s.ACL != ""
+}
+
+type config struct {
+	Features string `mapstructure:"features,omitempty"`
+	Database string `mapstructure:"database,omitempty"`
+	Username string `mapstructure:"username,omitempty"`
+	Password string `mapstructure:"password,omitempty"`
+	Url      string `mapstructure:"url,omitempty"`
+}
+
+func (c config) hasDatabase() bool {
+	return c.Database != ""
+}
+
+func (c config) hasFeature(name string) bool {
+	if c.Features == "" {
+		return false
+	}
+
+	for _, value := range strings.Split(c.Features, ",") {
+		if value == name {
+			return true
+		}
+	}
+
+	return false
 }

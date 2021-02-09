@@ -6,7 +6,7 @@ TEST_DB_URL?=https://localhost:9443
 go_files := $(shell find . -path '*/testdata' -prune -o -type f -name '*.go' -print)
 
 .DEFAULT_GOAL := all
-.PHONY := all start-docker configure-docker stop-docker test build fmtcheck vet
+.PHONY := all start-docker configure-docker stop-docker test test-acc build fmtcheck vet
 
 vet: $(go_files)
 	go vet  ./...
@@ -23,7 +23,10 @@ fmtcheck: $(go_files)
 	fi
 
 test:
-	RS_API_URL=$(TEST_DB_URL) RS_USERNAME=$(TEST_USERNAME) RS_PASSWORD=$(TEST_PASSWORD) RS_DB=$(TEST_DB_NAME) go test -v ./...
+	RS_API_URL=https://localhost:9443 RS_USERNAME=go-vcr RS_PASSWORD=unused RS_DB=mydb go test -v ./...
+
+test-acc:
+	RS_DISABLE_FIXTURES=true RS_API_URL=$(TEST_DB_URL) RS_USERNAME=$(TEST_USERNAME) RS_PASSWORD=$(TEST_PASSWORD) RS_DB=$(TEST_DB_NAME) go test -v ./...
 
 bin/vault-plugin-database-redisenterprise: $(go_files)
 	go build -trimpath -o ./bin/vault-plugin-database-redisenterprise ./cmd/vault-plugin-database-redisenterprise

@@ -1,19 +1,20 @@
-package vault_plugin_database_redisenterprise
+package plugin
 
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/dnaeon/go-vcr/cassette"
-	"github.com/dnaeon/go-vcr/recorder"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"strconv"
 	"testing"
+
+	"github.com/dnaeon/go-vcr/cassette"
+	"github.com/dnaeon/go-vcr/recorder"
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	disbaleFixtures = getEnvAsBool("RS_DISABLE_FIXTURES", false)
+	disableFixtures = getEnvAsBool("RS_DISABLE_FIXTURES", false)
 )
 
 func record(t *testing.T, fixture string, f func(*testing.T, *recorder.Recorder)) {
@@ -21,7 +22,7 @@ func record(t *testing.T, fixture string, f func(*testing.T, *recorder.Recorder)
 	cassetteName := fmt.Sprintf("fixtures/%s", fixture)
 
 	fixtureMode := recorder.ModeReplaying
-	if disbaleFixtures {
+	if disableFixtures {
 		fixtureMode = recorder.ModeDisabled
 	}
 
