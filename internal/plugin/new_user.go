@@ -25,7 +25,7 @@ import (
 // }
 // The acl name is must exist the cluster before the user can be created.
 // The acl option can only be used with a database.
-func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error) {
+func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (_ dbplugin.NewUserResponse, err error) {
 	r.logger.Debug("new user", "display", req.UsernameConfig.DisplayName, "role", req.UsernameConfig.RoleName, "statements", req.Statements.Commands)
 
 	if len(req.Statements.Commands) != 1 {
@@ -41,7 +41,6 @@ func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserReq
 		return dbplugin.NewUserResponse{}, fmt.Errorf("no 'role' or 'acl' in creation statement for %s", req.UsernameConfig.RoleName)
 	}
 
-	// Generate a username which also includes random data (20 characters) and current epoch (11 characters) and the prefix 'v'
 	username, err := r.generateUsername(req.UsernameConfig.DisplayName, req.UsernameConfig.RoleName)
 	if err != nil {
 		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot generate username: %w", err)
@@ -122,7 +121,7 @@ func (r redisEnterpriseDB) generateRoleName(username string) string {
 	return r.config.Database + "-" + username
 }
 
-func (r *redisEnterpriseDB) generateRole(ctx context.Context, aclName string, roleName string, roleManagement string) (sdk.Role, error) {
+func (r *redisEnterpriseDB) generateRole(ctx context.Context, aclName string, roleName string, roleManagement string) (_ sdk.Role, err error) {
 	r.databaseRolePermissions.Lock()
 	defer r.databaseRolePermissions.Unlock()
 
@@ -164,7 +163,7 @@ func (r *redisEnterpriseDB) cleanUpGeneratedRoleOnError(originalErr *error, role
 		return
 	}
 
-	// Can't use the 'real' context as there's the possibility that the problem is the context timing out
+	// Can't use the 'real' context as there's the possibility that the problem is the context timed out
 	// so wouldn't be able to roll back
 	// Any role permissions associated with the role will be deleted by Redis Enterprise
 	if err := r.client.DeleteRole(context.TODO(), role.UID); err != nil {

@@ -28,5 +28,3 @@ services:
       - ".././bin:/etc/vault/plugins"
     networks:
       - vault
-
-

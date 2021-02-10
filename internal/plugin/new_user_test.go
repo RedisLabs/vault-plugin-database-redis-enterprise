@@ -2,12 +2,17 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
 	"github.com/dnaeon/go-vcr/recorder"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 	dbtesting "github.com/hashicorp/vault/sdk/database/dbplugin/v5/testing"
@@ -146,4 +151,133 @@ func TestRedisEnterpriseDB_NewUser_Detect_Errors_With_Database_With_ACL(t *testi
 			})
 		}
 	})
+}
+
+func TestRedisEnterpriseDB_NewUser_createUserWithAclFailureRollsBackCorrectly(t *testing.T) {
+
+	client := &mockSdk{}
+	subject := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}),
+		client,
+		func(displayName string, roleName string) (string, error) {
+			return displayName + roleName, nil
+		})
+	subject.config = config{
+		Database: "mocked",
+		Features: "acl_only",
+	}
+
+	expectedError := errors.New("nope")
+	embeddedError := errors.New("failed")
+
+	ctx := context.TODO()
+
+	client.On("FindACLByName", ctx, "expected").Return(&sdk.ACL{UID: 3}, nil)
+	client.On("CreateRole", ctx, sdk.CreateRole{
+		Name:       "mocked-test-user",
+		Management: "db_member",
+	}).Return(sdk.Role{UID: 4}, nil)
+	client.On("FindDatabaseByName", ctx, "mocked").Return(sdk.Database{
+		UID: 5,
+		RolePermissions: []sdk.RolePermission{
+			{
+				RoleUID: 5,
+				ACLUID:  6,
+			},
+		},
+	}, nil)
+	client.On("UpdateDatabaseWithRetry", ctx, 5, sdk.UpdateDatabase{
+		RolePermissions: []sdk.RolePermission{
+			{
+				RoleUID: 5,
+				ACLUID:  6,
+			},
+			{
+				RoleUID: 4,
+				ACLUID:  3,
+			},
+		},
+	}).Return(nil)
+	client.On("CreateUser", ctx, sdk.CreateUser{
+		Name:        "test-user",
+		Password:    "1234",
+		Roles:       []int{4},
+		EmailAlerts: false,
+		AuthMethod:  "regular",
+	}).Return(sdk.User{}, expectedError)
+	client.On("DeleteRole", ctx, 4).Return(embeddedError)
+
+	_, err := subject.NewUser(ctx, dbplugin.NewUserRequest{
+		UsernameConfig: dbplugin.UsernameMetadata{
+			DisplayName: "test-",
+			RoleName:    "user",
+		},
+		Statements: dbplugin.Statements{
+			Commands: []string{`{"acl": "expected"}`},
+		},
+		Password: "1234",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, multierror.Append(expectedError, embeddedError), err)
+}
+
+func TestRedisEnterpriseDB_NewUser_createRoleFailureRollsBackCorrectly(t *testing.T) {
+
+	client := &mockSdk{}
+	subject := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}),
+		client,
+		func(displayName string, roleName string) (string, error) {
+			return displayName + roleName, nil
+		})
+	subject.config = config{
+		Database: "mocked",
+		Features: "acl_only",
+	}
+
+	expectedError := errors.New("broken")
+	embeddedError := errors.New("went wrong")
+
+	ctx := context.TODO()
+
+	client.On("FindACLByName", ctx, "expected").Return(&sdk.ACL{UID: 3}, nil)
+	client.On("CreateRole", ctx, sdk.CreateRole{
+		Name:       "mocked-test-user",
+		Management: "db_member",
+	}).Return(sdk.Role{UID: 4}, nil)
+	client.On("FindDatabaseByName", ctx, "mocked").Return(sdk.Database{
+		UID: 5,
+		RolePermissions: []sdk.RolePermission{
+			{
+				RoleUID: 5,
+				ACLUID:  6,
+			},
+		},
+	}, nil)
+	client.On("UpdateDatabaseWithRetry", ctx, 5, sdk.UpdateDatabase{
+		RolePermissions: []sdk.RolePermission{
+			{
+				RoleUID: 5,
+				ACLUID:  6,
+			},
+			{
+				RoleUID: 4,
+				ACLUID:  3,
+			},
+		},
+	}).Return(expectedError)
+	client.On("DeleteRole", ctx, 4).Return(embeddedError)
+
+	_, err := subject.NewUser(ctx, dbplugin.NewUserRequest{
+		UsernameConfig: dbplugin.UsernameMetadata{
+			DisplayName: "test-",
+			RoleName:    "user",
+		},
+		Statements: dbplugin.Statements{
+			Commands: []string{`{"acl": "expected"}`},
+		},
+		Password: "1234",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, multierror.Append(expectedError, embeddedError), err)
 }
