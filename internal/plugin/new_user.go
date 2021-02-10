@@ -91,9 +91,7 @@ func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserReq
 				}
 			}
 		}
-	}
-
-	if s.hasACL() {
+	} else if s.hasACL() {
 		role, err = r.generateRole(ctx, s.ACL, r.generateRoleName(username), "db_member")
 		if err != nil {
 			return dbplugin.NewUserResponse{}, err

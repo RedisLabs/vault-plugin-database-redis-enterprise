@@ -123,6 +123,78 @@ func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, use
 	assert.Contains(t, userNames(users), generatedUser)
 }
 
+func assertUserInRole(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string, roleName string) {
+	t.Helper()
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
+
+	user, err := client.FindUserByName(context.TODO(), generatedUser)
+	require.NoError(t, err)
+
+	role, err := client.FindRoleByName(context.TODO(), roleName)
+	require.NoError(t, err)
+
+	assert.Equal(t, user.Roles, []int{role.UID})
+}
+
+func assertUserHasACL(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, database string, generatedUser string, aclName string) {
+	t.Helper()
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
+
+	user, err := client.FindUserByName(context.TODO(), generatedUser)
+	require.NoError(t, err)
+
+	db, err := client.FindDatabaseByName(context.TODO(), database)
+	require.NoError(t, err)
+
+	role := db.FindPermissionForRole(user.Roles[0])
+	require.NotNil(t, role)
+
+	acl, err := client.GetACL(context.TODO(), role.ACLUID)
+	require.NoError(t, err)
+
+	assert.Equal(t, aclName, acl.Name)
+}
+
+func findACLForRole(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, roleName string) sdk.ACL {
+	t.Helper()
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
+
+	role, err := client.FindRoleByName(context.Background(), roleName)
+	require.NoError(t, err)
+	db, err := client.FindDatabaseByName(context.Background(), database)
+	require.NoError(t, err)
+	perm := db.FindPermissionForRole(role.UID)
+	require.NotNil(t, perm)
+	acl, err := client.GetACL(context.Background(), perm.ACLUID)
+	require.NoError(t, err)
+	return acl
+}
+
+func findAlternativeACL(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, aclId int) sdk.ACL {
+	t.Helper()
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
+
+	acls, err := client.ListACLs(context.Background())
+	require.NoError(t, err)
+
+	for _, acl := range acls {
+		if acl.UID != aclId {
+			return acl
+		}
+	}
+
+	require.Fail(t, "Unable to find an alternative ACL")
+	return sdk.ACL{}
+}
+
 func initializeRequest(url string, username string, password string, database string, enableACL bool) dbplugin.InitializeRequest {
 	config := map[string]interface{}{
 		"url":      url,
