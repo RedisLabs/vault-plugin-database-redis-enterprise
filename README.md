@@ -2,376 +2,127 @@
 
 A Redis Enterprise plugin for the HashiCorp Vault Database Secrets Engine.
 
-## Overview
+This is a standalone backend plugin for use with Hashicorp Vault. 
+This plugin generates credentials for use with Redis Enterprise Database clusters.
 
-This plugin supports:
+## Quick Links
+- [Redis Enterprise Docs](https://redislabs.com/redis-enterprise-software/overview)
+- [Vault Website](https://www.vaultproject.io)
+- [Vault Github Project](https://www.github.com/hashicorp/vault)
 
- * database users via a role bound in the database
- * database users with a specific Redis ACL
- * cluster-wide users with access to multiple databases.
+## Development
 
-A **database user with a role** provides access by generating a user
-using an existing role bound to an ACL in the database. This enables role-based
-modeling of database users without actually creating the users. The plugin
-will manage the user lifecycle.
+If you wish to work on this plugin, you'll first need [Go](https://www.golang.org) installed on your machine 
+(version 1.15+ is *required*).
 
-A **database user with an ACL** provides access by creating a new role
-and role binding in the database. This is the most dynamic and requires no
-configuration by the administrator except when a new ACL is required to be
-created. **This may conflict with operator-managed role bindings for a database.**
-This feature is turned off by default and must be enabled.
+Make sure Go is properly installed, including setting up a [GOPATH](https://golang.org/doc/code.html#GOPATH).
 
-A **cluster user** are provided access to databases by the role
-of the user. No database is specified in the configuration. If the role is
-bound in a particular database, the user has capabilities in that database. This
-binding in the database is controlled by the cluster administrator and
-not the plugin. This allows the generated user to access more than one database.
+To run the tests locally you will need to have [Docker](https://docs.docker.com/get-docker) installed on your machine.
 
-In all cases, the user is created dynamically and deleted when it expires.
+Clone this repository:
 
-## Building the plugin
-
-```
-go build
-gox -osarch="linux/amd64" ./...
+```sh
+$ git clone https://github.com/RedisLabs/vault-plugin-database-redis-enterprise
+$ cd vault-plugin-database-redis-enterprise
 ```
 
-The plugin architecture must be for the target vault architecture. If you are
-running via docker, this is likely `linux/amd64`.
+or use `go get github.com/RedisLabs/vault-plugin-database-redis-enterprise`
 
-## Testing the plugin
+### Building
 
-You you need a Redis Enterprise REST API endpoint and cluster administrator
-username and password to run the tests. In general, the tests require a few
-environment variables and can be run as follows:
+To compile this plugin, run `make` or `make build`.  This will put the plugin binary in a local `bin` directory.
+By default this will generate a binary for your local platform and a binary for `linux`/`amd64`.
 
-```
-export RS_API_URL=...
-export RS_USERNAME=...
-export RS_PASSWORD=...
-go test
+```sh
+$ make build
 ```
 
-The tests require:
+### Testing
 
- * a locally accessible endpoint for Redis Enterprise REST API
- * a database called `mydb`
+Testing this plugin takes two forms.  The first is the execution of the tests against a set of recorded fixtures
+and the second executes tests against a running Redis Enterprise Cluster.
 
-The setup for testing is as follows:
+To execute the tests against the recorded fixtures run `make test`.  
+Fixtures have been included to allow the tests to execute quickly within the plugin's CI process. 
 
-1. At minimum, the vault plugin needs to access the REST API of a Redis Enterprise
-   cluster. The [Redis Enterprise operator for Kubernetes](https://docs.redislabs.com/latest/platforms/kubernetes/)
-   can easily be installed on a variety of target distributions. You can
-   follow the [install procedure](https://github.com/RedisLabs/redis-enterprise-k8s-docs#installation)
-   to install the operator bundle into a namespace.
-
-1. A very small test cluster can be established by:
-
-   ```
-   cat << EOF > test-cluster.yaml
-   apiVersion: app.redislabs.com/v1
-   kind: RedisEnterpriseCluster
-   metadata:
-     name: test
-   spec:
-     nodes: 3
-     redisEnterpriseNodeResources:
-       limits:
-         cpu: 1000m
-         memory: 3Gi
-       requests:
-         cpu: 1000m
-         memory: 3Gi
-   EOF
-   kubectl apply -f test-cluster.yaml
-   ```
-
-1. The cluster will bootstrap and you can check the status with:
-
-   ```
-   kubectl get rec/test -o=jsonpath={.status.state}
-   ```
-
-1. Once the status is `Running`, you can port forward the REST API to your local
-   machine for testing:
-
-   ```
-   kubectl port-forward service/test 9443
-   ```
-
-1. The end point for testing is now `https://localhost:9443/` and the credentials
-   are stored in the secret with the same name of the cluster (`secret/test`):
-
-   ```
-   export RS_API_URL=https://localhost:9443/
-   export RS_USERNAME=`kubectl get secret/test -o=jsonpath={.data.username} | base64 -d`
-   export RS_PASSWORD=`kubectl get secret/test -o=jsonpath={.data.password} | base64 -d`
-   ```
-
-1. The tests require a database to be setup:
-
-   ```
-   cat << EOF > mydb-100mb-db.yaml
-   apiVersion: app.redislabs.com/v1alpha1
-   kind: RedisEnterpriseDatabase
-   metadata:
-     name: mydb
-   spec:
-     memory: 100MB
-     rolesPermissions:
-     - type: redis-enterprise
-       role: "DB Member"
-       acl: "Not Dangerous"
-   EOF
-   kubectl apply -f mydb-100mb-db.yaml
-   ```
-
-The tests should now work against the cluster:
-
-```
-go test
+```sh
+$ make test
 ```
 
-## Setup
+To execute the tests against an existing live Redis Enterprise cluster run `make test-acc`.
+The plugin's makefile contains default values to locate a Redis Enterprise cluster provisioned through 
+the makefile.  The following example shows how these values can be overridden to locate your own cluster.
 
-### Run a local Vault
+```sh
+$ export TEST_USERNAME=admin
+$ export TEST_PASSWORD=xyzzyxyzzy
+$ export TEST_DB_NAME=mydb
+$ export TEST_DB_URL=https://localhost:9443
 
-In your build directory for the plugin, run Vault so that it has access to the
-plugin binary:
-
-```
-docker run --rm --cap-add=IPC_LOCK -e 'VAULT_DEV_ROOT_TOKEN_ID=xyzzyxyzzy' -v `pwd`:/etc/vault/plugins -e 'VAULT_LOCAL_CONFIG={"plugin_directory":"/etc/vault/plugins"}' vault
-```
-
-### Configure the plugin
-
-From your build directory, calculate the sha256 checksum:
-
-```
-shasum -a 256 vault-plugin-database-redisenterprise_linux_amd64 | cut -d' ' -f1
+$ make test-acc
 ```
 
-Now, attach to the running Vault container:
+## Running Vault + Plugin + Redis Enterprise
 
-```
-VAULT_NAME=`docker ps -f ancestor=vault --format "{{.Names}}"`
-docker exec -it $VAULT_NAME sh
-```
+The repo provides a means to run a local Vault server configured with the Vault Plugin and backed by a Redis Enterprise 
+cluster.  To start the Vault server and Redis Enterprise cluster run `make start-docker` followed by `make configure-docker` 
+to configure Vault with a locally built plugin binary. 
 
-In the shell, setup the local Vault authentication:
+```sh
+$ make start-docker
 
-```
-export VAULT_TOKEN=$VAULT_DEV_ROOT_TOKEN_ID
-export VAULT_ADDR=http://127.0.0.1:8200
-```
+cd bootstrap && docker-compose up --detach
+Creating network "bootstrap_vault" with the default driver
+Creating bootstrap_v_1  ... done
+Creating bootstrap_rp_1 ... done
+./bootstrap/redis-setup.sh -u admin -p xyzzyxyzzy -db mydb
+waiting for the container to finish starting up
+...
+waiting for the container to finish starting up
+waiting for cluster bootstrap
+...
+waiting for cluster bootstrap
+waiting for database setup
+done
 
-Using the sha256 that you calculated above, modify this command to
-register the plugin:
-
-```
-vault write sys/plugins/catalog/database/redisenterprise-database-plugin command=vault-plugin-database-redisenterprise_linux_amd64 sha256=...
-```
-
-Finally, enable the database secrets engine:
-
-```
-vault secrets enable database
-```
-
-At this point, you can configure database roles for Redis Enterprise.
-
-### Configure a database
-
-The following will config a Vault configuration of a Redis database called `mydb`. Note
-that the `allow_roles` specifies the Vault role names and not the Redis user role. In
-this example, we have enabled all vault roles with a wildcard.
-
-Using the defaults for a cluster setup, there is a cluster administrator account
-in the kubernetes secret for the cluster. You can retrieve these by:
-
-```
-kubectl get secret/test -o=jsonpath={.data.username} | base64 -d
-kubectl get secret/test -o=jsonpath={.data.password} | base64 -d
+$ make configure-docker
+...
 ```
 
-Use these values to configure a database, replacing the `...` at the end with
-the username and password, respectively:
+A docker compose file representing a Redis Enterprise cluster and a Vault server will be provisioned. 
+Once setup is complete run `make test-acc` to execute the acceptance test against the local containers.
 
-```
-vault write database/config/redis-mydb plugin_name="redisenterprise-database-plugin" url="https://host.docker.internal:9443" allowed_roles="*" database=mydb username=... password=...
-```
-
-
-### Configure database user with a role
-
-A user is associated with a role binding in the database. You
-reference a role bound to an ACL within the database. This role binding
-can be defined via the K8s database controller or via the administrative
-user interface.
-
-You can reference only the role:
-
-```
-vault write database/roles/mydb db_name=redis-mydb creation_statements="{\"role\":\"DB Member\"}" default_ttl=3m max_ttl=5m
+```sh
+$ make test-acc
 ```
 
-or add the ACL as well as an assertion:
+After local testing is complete the docker containers can be removed through the `make stop-docker`.
 
-```
-vault write database/roles/mydb-role-acl db_name=redis-mydb creation_statements="{\"role\":\"DB Member\",\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
-```
+```sh
+$ make stop-docker
 
-If the ACL is also specified, the plugin will check to ensure it has the same
-binding in the database. It is an error if the role does not have the same
-binding to the same ACL in the database.
-
-When used, a new user is generated and associated with the role referenced,
-
-A role binding in a database is never generated when using an existing role as this would
-allow escalation of privileges in the database for others users with the same role.
-
-### Configuring a cluster user role
-
-A cluster user has access to whatever database the associated role has been
-given by the administrator. This may be a single database with a specific
-ACL or multiple databases with different ACLs. The plugin does not manage
-the role bindings and does not update the `roles_permissions` on the
-database.
-
-To configure a database that allows any database, just omit the `database`
-parameter:
-
-```
-vault write database/config/redis-test plugin_name="redisenterprise-database-plugin" url="https://host.docker.internal:9443" allowed_roles="*" username="demo@redislabs.com" password=...
+cd bootstrap && docker-compose down
+Stopping bootstrap_rp_1 ... done
+Stopping bootstrap_v_1  ... done
+Removing bootstrap_rp_1 ... done
+Removing bootstrap_v_1  ... done
+Removing network bootstrap_vault
 ```
 
-When you create the Vautl role for the user, you must specify a database role
-(Redis ACLs are not allowed):
+### Building for Multiple Architectures
 
-```
-vault write database/roles/test db_name=redis-test creation_statements="{\"role\":\"DB Member\"}" default_ttl=3m max_ttl=5m
-```
+Vault operates across a number of different architectures and as a result Vault plugins must also be built to execute 
+across the same architectures.  This repo supports building the appropriate binaries through [goreleaser](https://github.com/goreleaser/goreleaser) 
+and these steps are coordinated through the repo's GitHub Action workflows.  To test changes to the gotrelease 
+configuration or to build the different binaries locally the following command can be executed.
 
-### Configuring a database user with an ACL only
-
-This feature must be enabled When the database is configured via the "features"
-parameter with the vault "acl_only":
-
-```
-vault write database/config/redis-mydb plugin_name="redisenterprise-database-plugin" url="https://host.docker.internal:9443" allowed_roles="*" database=mydb features=acl_only username=... password=...
+```sh
+$ goreleaser --snapshot --skip-publish --rm-dist
 ```
 
-With this feature turned on, a database role can reference only an ACL. A role
-is dynamically generated for the user and bound in the database. In doing
-so, it changes the database definition. As such, it cannot be used with the
-K8s database controller as it also manages the database role permission bindings.
+A `dist` directory will be created and there will be one binary for each OS/Arch combination defined in the root
+`goreleaser.yml` file.  A SHA256SUMS file will also be produced with entries for each binary.  
+The SHA values can be used when installing the plugin to a running Vault server. 
 
-This feature is used by specifying only the ACL:
-
-```
-vault write database/roles/mydb-acl db_name=redis-mydb creation_statements="{\"acl\":\"Not Dangerous\"}" default_ttl=3m max_ttl=5m
-```
-
-When used, the generated user will have a generated role that is dynamically
-bound in the database to the ACL. When the user expires, the role and role
-binding is removed.
-
-
-### Reading credentials
-
-Once the Vault role is configured, a workload can create a new credential by just
-reading the Vault role:
-
-```
-vault read database/creds/mydb
-```
-
-The result is similar to:
-
-```
-Key                Value
----                -----
-lease_id           database/creds/mydb/zgVJfei8P0Tw7cKX3g9Hx89l
-lease_duration     3m
-lease_renewable    true
-password           ZWI87ddZMPR7hR8U-3sJ
-username           vault-mydb-69dea4c9-4da8-4e34-bf93-eebf60095766
-```
-
-A workload can renew the password before the lease expires up to the maximum expiry:
-
-```
-vault lease renew database/creds/test/zgVJfei8P0Tw7cKX3g9Hx89l
-```
-
-A lease renewal changes the password for the user.
-
-If the lease expires or the maximum expiry is reached, the user is revoked by
-Vault. When the user is revoked, the plugin will delete the user and all
-the corresponding create items (i.e., the role, binding, and user) are deleted.
-
-Note that the `roles_permissions` on the database will be updated during this process.
-
-### Using credentials
-
-The username and password can be directly used in the Redis `AUTH` command:
-
-```
-AUTH vault-mydb-69dea4c9-4da8-4e34-bf93-eebf60095766 ZWI87ddZMPR7hR8U-3sJ
-```
-
-On a test cluster, you can forward the database port:
-
-```
-kubectl port-forward service/mydb `kubectl get service/mydb -o=jsonpath="{.spec.ports[0].targetPort}"`
-```
-
-Use the `redis-cli` to connect and authenticate:
-
-```
-redis-cli -p `kubectl get service/mydb -o=jsonpath="{.spec.ports[0].targetPort}"` --user vault-mydb-942fb9fe-f5c7-49d9-bce2-151c4c3c5343 --pass bxp-8GDDdZrDpbRfDzxg
-```
-
-where the username and password are the credentials returned by vault.
-
-## Service & plugin request flows
-
-### Database Roles
-
-The complete lifecycle of the plugin and its relationship to the workload,
-Redis Enterprise, and the Redis database instance are as follows:
-
-![Database with role sequence diagram](flows-database-role.svg)
-
-It should be noted that Vault is responsible for detecting the expiration of
-the user. When it does so, it will invoke the plugin to delete the user. The
-application workload is unaware of this expiration and must re-read the
-database role to generate a new set of credentials. This same scenario happens
-when the lease expires.
-
-### Cluster Role
-
-A cluster role does not have a database associated with the vault role. In
-this scenario, only the user creation is different from the database role.
-
-![Cluster role sequence diagram](flows-cluster-role.svg)
-
-### Database ACL
-
-When only the database and ACL is specified, a role must be generated for the
-user and deleted when the user is deleted. This changes the user creation and
-deletion but the rest is the same as the database role.
-
-![Database ACL sequence diagram](flows-database-acl.svg)
-
-It should be noted that the plugin updates the role_permissions aspect of
-the database definition. This conflicts with the Redis Enterprise Operator,
-which also maintains role_permissions, and so this cannot be used with the
-operator.
-
-## Kubernetes deployment
-
-The Vault sidecar injector and the plugin can work together to provide
-workloads access to databases via short-lived users and credentials. See
-the [Using the plugin on K8s](k8s/README.md) for a guide to to deploying and
-testing access to Redis Enterprise databases on Kubernetes.
+**Note:**  If you are running Vault via docker the plugin architecture if likely to be `linux/amd64`.
+This binary is also produced through the `make build`
