@@ -15,6 +15,15 @@ func (c *Client) ListACLs(ctx context.Context) ([]ACL, error) {
 	return body, nil
 }
 
+func (c *Client) GetACL(ctx context.Context, id int) (ACL, error) {
+	var body ACL
+	if err := c.request(ctx, http.MethodGet, fmt.Sprintf("/v1/redis_acls/%d", id), nil, &body); err != nil {
+		return ACL{}, err
+	}
+
+	return body, nil
+}
+
 func (c *Client) FindACLByName(ctx context.Context, name string) (*ACL, error) {
 	acls, err := c.ListACLs(ctx)
 	if err != nil {

@@ -72,11 +72,66 @@ func TestRedisEnterpriseDB_NewUser_With_Database(t *testing.T) {
 	})
 }
 
+func TestRedisEnterpriseDB_NewUser_roleVerifiesACL(t *testing.T) {
+
+	record(t, "NewUser_roleVerifiesACL", func(t *testing.T, recorder *recorder.Recorder) {
+
+		roleName := "DB Member"
+
+		plugin := setupRedisEnterpriseDB(t, database, false, recorder)
+
+		acl := findACLForRole(t, recorder, url, username, password, roleName)
+
+		createRequest := dbplugin.NewUserRequest{
+			UsernameConfig: dbplugin.UsernameMetadata{
+				DisplayName: "tester_new_role_verifies_acl",
+				RoleName:    "test",
+			},
+			Statements: dbplugin.Statements{
+				Commands: []string{fmt.Sprintf(`{"role":%q, "acl": %q}`, roleName, acl.Name)},
+			},
+			Password:   "testing",
+			Expiration: time.Now().Add(time.Minute),
+		}
+
+		res := dbtesting.AssertNewUser(t, plugin, createRequest)
+
+		assertUserExists(t, recorder, url, username, password, res.Username)
+
+		assertUserInRole(t, recorder, url, username, password, res.Username, roleName)
+
+		teardownUserFromDatabase(t, recorder, plugin, res.Username)
+	})
+}
+
+func TestRedisEnterpriseDB_NewUser_rejectsRoleWithDifferentACL(t *testing.T) {
+
+	record(t, "NewUser_rejectsRoleWithDifferentACL", func(t *testing.T, recorder *recorder.Recorder) {
+
+		roleName := "DB Member"
+
+		plugin := setupRedisEnterpriseDB(t, database, false, recorder)
+
+		acl := findACLForRole(t, recorder, url, username, password, roleName)
+
+		altACL := findAlternativeACL(t, recorder, url, username, password, acl.UID)
+
+		createReq := newUserRequest(roleName, altACL.Name)
+
+		_, err := plugin.NewUser(context.Background(), createReq)
+
+		assert.Error(t, err, "Failed to reject a role with the wrong ACL")
+
+	})
+}
+
 func TestRedisEnterpriseDB_NewUser_With_Database_With_ACL(t *testing.T) {
 
 	record(t, "NewUser_With_Database_With_ACL", func(t *testing.T, recorder *recorder.Recorder) {
 
 		db := setupRedisEnterpriseDB(t, database, true, recorder)
+
+		aclName := "Not Dangerous"
 
 		createRequest := dbplugin.NewUserRequest{
 			UsernameConfig: dbplugin.UsernameMetadata{
@@ -84,7 +139,7 @@ func TestRedisEnterpriseDB_NewUser_With_Database_With_ACL(t *testing.T) {
 				RoleName:    "test",
 			},
 			Statements: dbplugin.Statements{
-				Commands: []string{`{"acl":"Not Dangerous"}`},
+				Commands: []string{fmt.Sprintf(`{"acl":%q}`, aclName)},
 			},
 			Password:   "testing",
 			Expiration: time.Now().Add(time.Minute),
@@ -93,6 +148,8 @@ func TestRedisEnterpriseDB_NewUser_With_Database_With_ACL(t *testing.T) {
 		res := dbtesting.AssertNewUser(t, db, createRequest)
 
 		assertUserExists(t, recorder, url, username, password, res.Username)
+
+		assertUserHasACL(t, recorder, url, username, password, database, res.Username, aclName)
 
 		teardownUserFromDatabase(t, recorder, db, res.Username)
 	})

@@ -7,6 +7,7 @@ import (
 type User struct {
 	UID               int    `json:"uid"`
 	Role              string `json:"role"`
+	Roles             []int  `json:"role_uids,omitempty"`
 	Name              string `json:"name"`
 	PasswordIssueDate string `json:"password_issue_date"`
 }
