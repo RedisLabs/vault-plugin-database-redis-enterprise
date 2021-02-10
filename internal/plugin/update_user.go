@@ -9,7 +9,7 @@ import (
 )
 
 // UpdateUser changes a user's password
-func (r *RedisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error) {
+func (r *redisEnterpriseDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error) {
 	if req.Password == nil {
 		return dbplugin.UpdateUserResponse{}, nil
 	}

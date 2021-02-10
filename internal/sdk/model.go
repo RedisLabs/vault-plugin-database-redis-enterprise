@@ -27,9 +27,18 @@ type Role struct {
 	Management string `json:"management"`
 }
 
+type CreateRole struct {
+	Name       string `json:"name"`
+	Management string `json:"management"`
+}
+
 type Database struct {
 	UID             int              `json:"uid"`
 	Name            string           `json:"name"`
+	RolePermissions []RolePermission `json:"roles_permissions"`
+}
+
+type UpdateDatabase struct {
 	RolePermissions []RolePermission `json:"roles_permissions"`
 }
 
@@ -51,6 +60,12 @@ type Cluster struct {
 	Name string `json:"name"`
 }
 
+type ACL struct {
+	UID  int    `json:"uid"`
+	Name string `json:"name"`
+	ACL  string `json:"acl"`
+}
+
 var _ error = &UserNotFoundError{}
 
 type UserNotFoundError struct {
@@ -59,4 +74,27 @@ type UserNotFoundError struct {
 
 func (u *UserNotFoundError) Error() string {
 	return fmt.Sprintf("unable to find user %s", u.name)
+}
+
+var _ error = &RoleNotFoundError{}
+
+type RoleNotFoundError struct {
+	name string
+}
+
+func (u *RoleNotFoundError) Error() string {
+	return fmt.Sprintf("unable to find role %s", u.name)
+}
+
+var _ error = &HttpError{}
+
+type HttpError struct {
+	method string
+	path   string
+	status int
+	body   string
+}
+
+func (h *HttpError) Error() string {
+	return fmt.Sprintf("unable to perform request %s %s: %d - %s", h.method, h.path, h.status, h.body)
 }

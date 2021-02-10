@@ -66,7 +66,7 @@ func (c *Client) request(ctx context.Context, method string, path string, reques
 
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return fmt.Errorf("unable to perform request %s %s - %w", method, path, err)
+		return fmt.Errorf("unable to perform request %s %s: %w", method, path, err)
 	}
 
 	defer res.Body.Close()
@@ -74,14 +74,19 @@ func (c *Client) request(ctx context.Context, method string, path string, reques
 	if res.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			return fmt.Errorf("unable to perform request %s %s: %d - %w", method, path, res.StatusCode, err)
+			return fmt.Errorf("unable to perform request %s %s (%d): %w", method, path, res.StatusCode, err)
 		}
-		return fmt.Errorf("unable to perform request %s %s: %d - %s", method, path, res.StatusCode, body)
+		return &HttpError{
+			method: method,
+			path:   path,
+			status: res.StatusCode,
+			body:   strings.TrimSpace(string(body)),
+		}
 	}
 
 	if responseBody != nil {
 		if err := json.NewDecoder(res.Body).Decode(responseBody); err != nil {
-			return fmt.Errorf("unable to decode response %s %s - %w", method, path, err)
+			return fmt.Errorf("unable to decode response %s %s: %w", method, path, err)
 		}
 	}
 
