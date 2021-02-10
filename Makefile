@@ -6,7 +6,7 @@ TEST_DB_URL?=https://localhost:9443
 go_files := $(shell find . -path '*/testdata' -prune -o -type f -name '*.go' -print)
 
 .DEFAULT_GOAL := all
-.PHONY := all start-docker configure-docker stop-docker test test-acc build fmtcheck vet
+.PHONY := all start-docker configure-docker stop-docker test test-acc build fmtcheck vet coverage
 
 vet: $(go_files)
 	go vet  ./...
@@ -22,8 +22,15 @@ fmtcheck: $(go_files)
 		exit 1; \
 	fi
 
-test:
-	RS_API_URL=https://localhost:9443 RS_USERNAME=go-vcr RS_PASSWORD=unused RS_DB=mydb go test -v ./...
+bin/.coverage.out: $(go_files)
+	@mkdir -p bin/
+	RS_API_URL=https://localhost:9443 RS_USERNAME=go-vcr RS_PASSWORD=unused RS_DB=mydb go test -v ./... -coverpkg=$(shell go list ./... | xargs | sed -e 's/ /,/g') -coverprofile bin/.coverage.tmp
+	@mv bin/.coverage.tmp bin/.coverage.out
+
+test: bin/.coverage.out
+
+coverage: bin/.coverage.out
+	@go tool cover -html=bin/.coverage.out
 
 # `-count=1` is required when running against a 'real' database, otherwise Go will use the cached result of the tests being run instead
 test-acc:
