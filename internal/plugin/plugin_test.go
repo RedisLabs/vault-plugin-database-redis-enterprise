@@ -159,6 +159,23 @@ func assertUserHasACL(t *testing.T, recorder *recorder.Recorder, url string, use
 	assert.Equal(t, aclName, acl.Name)
 }
 
+func findRoleForUser(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) sdk.Role {
+	t.Helper()
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
+
+	user, err := client.FindUserByName(context.TODO(), generatedUser)
+	require.NoError(t, err)
+
+	require.Len(t, user.Roles, 1)
+
+	role, err := client.GetRole(context.TODO(), user.Roles[0])
+	require.NoError(t, err)
+
+	return role
+}
+
 func findACLForRole(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, roleName string) sdk.ACL {
 	t.Helper()
 	client := sdk.NewClient()
@@ -250,6 +267,17 @@ func assertUserDoesNotExists(t *testing.T, recorder *recorder.Recorder, url stri
 	assert.NotContains(t, userNames(users), generatedUser)
 }
 
+func assertRoleDoesNotExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedRole string) {
+	client := sdk.NewClient()
+	client.Client.Transport = recorder
+	client.Initialise(url, username, password)
+
+	roles, err := client.ListRoles(context.TODO())
+	require.NoError(t, err)
+
+	assert.NotContains(t, roleNames(roles), generatedRole)
+}
+
 func teardownUserFromDatabase(t *testing.T, recorder *recorder.Recorder, db *redisEnterpriseDB, generatedUser string) {
 	t.Helper()
 	dbtesting.AssertDeleteUser(t, db, dbplugin.DeleteUserRequest{
@@ -262,6 +290,14 @@ func userNames(users []sdk.User) []string {
 	var names []string
 	for _, u := range users {
 		names = append(names, u.Name)
+	}
+	return names
+}
+
+func roleNames(roles []sdk.Role) []string {
+	var names []string
+	for _, r := range roles {
+		names = append(names, r.Name)
 	}
 	return names
 }
