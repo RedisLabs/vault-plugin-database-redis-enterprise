@@ -1,6 +1,8 @@
 package sdk
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type User struct {
 	UID               int    `json:"uid"`
@@ -76,6 +78,15 @@ func (u *UserNotFoundError) Error() string {
 	return fmt.Sprintf("unable to find user %s", u.name)
 }
 
+func (u *UserNotFoundError) Is(target error) bool {
+	t, ok := target.(*UserNotFoundError)
+	if !ok {
+		return false
+	}
+
+	return u.name == t.name || t.name == ""
+}
+
 var _ error = &RoleNotFoundError{}
 
 type RoleNotFoundError struct {
@@ -84,6 +95,15 @@ type RoleNotFoundError struct {
 
 func (u *RoleNotFoundError) Error() string {
 	return fmt.Sprintf("unable to find role %s", u.name)
+}
+
+func (u *RoleNotFoundError) Is(target error) bool {
+	t, ok := target.(*RoleNotFoundError)
+	if !ok {
+		return false
+	}
+
+	return u.name == t.name || t.name == ""
 }
 
 var _ error = &HttpError{}
@@ -97,4 +117,16 @@ type HttpError struct {
 
 func (h *HttpError) Error() string {
 	return fmt.Sprintf("unable to perform request %s %s: %d - %s", h.method, h.path, h.status, h.body)
+}
+
+func (h *HttpError) Is(target error) bool {
+	t, ok := target.(*HttpError)
+	if !ok {
+		return false
+	}
+
+	return (h.path == t.path || t.path == "") &&
+		(h.method == t.method || t.method == "") &&
+		(h.body == t.body || t.body == "") &&
+		(h.status == t.status || t.status == 0)
 }

@@ -78,6 +78,39 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 	assert.Error(t, err, "Failed to detect no database with acl_only")
 }
 
+func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutURL(t *testing.T) {
+
+	request := initializeRequest("", username, password, database, false)
+	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
+		return displayName + roleName, nil
+	})
+
+	_, err := db.Initialize(context.Background(), request)
+	assert.Error(t, err, "Failed to detect no URL")
+}
+
+func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutUsername(t *testing.T) {
+
+	request := initializeRequest(url, "", password, database, false)
+	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
+		return displayName + roleName, nil
+	})
+
+	_, err := db.Initialize(context.Background(), request)
+	assert.Error(t, err, "Failed to detect no URL")
+}
+
+func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutPassword(t *testing.T) {
+
+	request := initializeRequest(url, username, "", database, false)
+	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
+		return displayName + roleName, nil
+	})
+
+	_, err := db.Initialize(context.Background(), request)
+	assert.Error(t, err, "Failed to detect no password")
+}
+
 func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
 	t.Helper()
 	client := sdk.NewClient()

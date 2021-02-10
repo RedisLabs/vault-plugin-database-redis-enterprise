@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
@@ -29,7 +30,7 @@ func (r *redisEnterpriseDB) findAndDeleteUser(ctx context.Context, username stri
 	user, err := r.client.FindUserByName(ctx, username)
 
 	if err != nil {
-		if _, ok := err.(*sdk.UserNotFoundError); ok {
+		if errors.Is(err, &sdk.UserNotFoundError{}) {
 			// If the user is not found, they may have been deleted manually. We'll assume
 			// this is okay and return successfully.
 			return nil
@@ -49,7 +50,9 @@ func (r *redisEnterpriseDB) findAndDeleteUser(ctx context.Context, username stri
 func (r redisEnterpriseDB) findAndDeleteRole(ctx context.Context, username string) error {
 	role, err := r.client.FindRoleByName(ctx, r.generateRoleName(username))
 	if err != nil {
-		if _, ok := err.(*sdk.RoleNotFoundError); ok {
+		if errors.Is(err, &sdk.RoleNotFoundError{}) {
+			// If the role is not found, then either the generated role wasn't created in the first place or its been
+			// deleted manually
 			return nil
 		}
 		return err

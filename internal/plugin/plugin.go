@@ -26,7 +26,7 @@ var _ dbplugin.Database = (*redisEnterpriseDB)(nil)
 type redisEnterpriseDB struct {
 	config           config
 	logger           hclog.Logger
-	client           *sdk.Client
+	client           sdkClient
 	generateUsername func(string, string) (string, error)
 
 	// databaseRolePermissions is used to attempt to avoid buried writes with multiple updates to the database
@@ -44,6 +44,7 @@ func New() (dbplugin.Database, error) {
 	})
 
 	generateUsername := func(displayName string, roleName string) (string, error) {
+		// Generate a username which also includes random data (20 characters) and current epoch (11 characters) and the prefix 'v'.
 		// Note that the username is used when generating a role, so the maximum length of the username must allow
 		// space for a database name (up to 63 characters) and a hyphen (maximum username length supported by Redis
 		// is 256)
@@ -61,7 +62,7 @@ func New() (dbplugin.Database, error) {
 	return dbType, nil
 }
 
-func newRedis(logger hclog.Logger, client *sdk.Client, generateUsername func(string, string) (string, error)) *redisEnterpriseDB {
+func newRedis(logger hclog.Logger, client sdkClient, generateUsername func(string, string) (string, error)) *redisEnterpriseDB {
 	return &redisEnterpriseDB{
 		logger:                  logger,
 		generateUsername:        generateUsername,
@@ -164,4 +165,20 @@ func (c config) hasFeature(name string) bool {
 
 func (c config) supportAclOnly() bool {
 	return c.hasFeature("acl_only")
+}
+
+type sdkClient interface {
+	Initialise(url string, username string, password string)
+	Close() error
+	FindACLByName(ctx context.Context, name string) (*sdk.ACL, error)
+	GetCluster(ctx context.Context) (sdk.Cluster, error)
+	UpdateDatabaseWithRetry(ctx context.Context, id int, update sdk.UpdateDatabase) error
+	FindDatabaseByName(ctx context.Context, name string) (sdk.Database, error)
+	CreateRole(ctx context.Context, create sdk.CreateRole) (sdk.Role, error)
+	DeleteRole(ctx context.Context, id int) error
+	FindRoleByName(ctx context.Context, name string) (sdk.Role, error)
+	CreateUser(ctx context.Context, create sdk.CreateUser) (sdk.User, error)
+	UpdateUserPassword(ctx context.Context, id int, update sdk.UpdateUser) error
+	DeleteUser(ctx context.Context, id int) error
+	FindUserByName(ctx context.Context, name string) (sdk.User, error)
 }
