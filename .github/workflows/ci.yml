@@ -2,6 +2,9 @@ name: CI
 
 on: [push]
 
+env:
+  GO_VERSION: "1.15"
+
 jobs:
   build:
 
@@ -11,9 +14,19 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2.1.3
         with:
-          go-version: 1.15
+          go-version: ${{ env.GO_VERSION }}
       - name: Checkout Repository
         uses: actions/checkout@v2.3.4
+
+      - name: Module and build cache
+        uses: actions/cache@v2.1.3
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-pkg-mod-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ env.GO_VERSION }}
 
       - name: Set up Kubernetes using kind
         uses: engineerd/setup-kind@v0.5.0
@@ -55,6 +68,7 @@ jobs:
           done
 
       - name: Install database
+        timeout-minutes: 5
         run: |
           cat <<EOF |
           apiVersion: app.redislabs.com/v1alpha1
@@ -71,6 +85,11 @@ jobs:
               acl: "Not Dangerous"
           EOF
           kubectl apply -f -
+          while [[ "$(kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status.status}')" != "active" ]]; do
+            echo "waiting for the database to be running"
+            kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
+            sleep 5;
+          done
 
       - name: Install a service to expose the Redis cluster on a port
         run: |
@@ -110,17 +129,7 @@ jobs:
       - name: Check cluster access
         timeout-minutes: 2
         run: |
-          while [[ "$(curl --silent --fail --insecure --user ${TEST_USERNAME}:${TEST_PASSWORD} --output /dev/null --write-out '%{http_code}' ${TEST_DB_URL}/v1/bootstrap)" != "200" ]]; do
-            echo "waiting for the cluster to be ready"
-            sleep 5;
-          done
-          curl --silent --fail --insecure "${TEST_DB_URL}/v1/bootstrap" --user "${TEST_USERNAME}:${TEST_PASSWORD}"
           curl --silent --fail --insecure "${TEST_DB_URL}/v1/bdbs" --user "${TEST_USERNAME}:${TEST_PASSWORD}"
-          while [ "$(curl --silent --fail --insecure --user "${TEST_USERNAME}:${TEST_PASSWORD}" ${TEST_DB_URL}/v1/bdbs | jq --arg db_name "mydb" --raw-output '.[] | select(.name == $db_name) | .status')" != "active" ]; do
-            echo "waiting for the database to be ready"
-            echo $(curl --silent --fail --insecure --user "${TEST_USERNAME}:${TEST_PASSWORD}" ${TEST_DB_URL}/v1/bdbs | jq --compact-output --arg db_name "mydb" --raw-output '.[] | select(.name == $db_name)')
-            sleep 1;
-          done
 
       - name: Build
         run: make
