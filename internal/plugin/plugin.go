@@ -12,7 +12,6 @@ import (
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/version"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
-	"github.com/hashicorp/vault/sdk/database/helper/credsutil"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -21,13 +20,15 @@ const redisEnterpriseTypeName = "redisenterprise"
 // Verify interface is implemented
 var _ dbplugin.Database = (*redisEnterpriseDB)(nil)
 
-// Our database data structure only holds the credentials. We have no connection
-// to maintain as we're just manipulating the cluster via the REST API.
+// jsonLogging sets whether the logs should be outputted in JSON format or not.
+// This is solely to allow the tests to be able to display messages in a friendly format - Vault needs logging to be in
+// JSON format to correctly display the logs of the plugin.
+var jsonLogging = true
+
 type redisEnterpriseDB struct {
-	config           config
-	logger           hclog.Logger
-	client           sdkClient
-	generateUsername func(string, string) (string, error)
+	config config
+	logger hclog.Logger
+	client sdkClient
 
 	// databaseRolePermissions is used to attempt to avoid buried writes with multiple updates to the database
 	// permissions at the same time, although something may still be updating the database at the same time.
@@ -40,38 +41,28 @@ func New() (dbplugin.Database, error) {
 	logger := hclog.New(&hclog.LoggerOptions{
 		Level:      hclog.Trace,
 		Output:     os.Stderr,
-		JSONFormat: true,
+		JSONFormat: jsonLogging,
 	})
 
-	generateUsername := func(displayName string, roleName string) (string, error) {
-		// Generate a username which also includes random data (20 characters) and current epoch (11 characters) and the prefix 'v'.
-		// Note that the username is used when generating a role, so the maximum length of the username must allow
-		// space for a database name (up to 63 characters) and a hyphen (maximum username length supported by Redis
-		// is 256)
-		return credsutil.GenerateUsername(
-			credsutil.DisplayName(displayName, 50),
-			credsutil.RoleName(roleName, 50),
-			credsutil.MaxLength(192),
-			credsutil.ToLower(),
-		)
-	}
 	client := sdk.NewClient()
 
-	db := newRedis(logger, client, generateUsername)
-	dbType := dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
-	return dbType, nil
+	db := newRedis(logger, client)
+	return wrapWithSanitizerMiddleware(db), nil
 }
 
-func newRedis(logger hclog.Logger, client sdkClient, generateUsername func(string, string) (string, error)) *redisEnterpriseDB {
+func newRedis(logger hclog.Logger, client sdkClient) *redisEnterpriseDB {
 	return &redisEnterpriseDB{
 		logger:                  logger,
-		generateUsername:        generateUsername,
 		client:                  client,
 		databaseRolePermissions: &sync.Mutex{},
 	}
 }
 
-// SecretVaults returns the configuration information with the password masked
+func wrapWithSanitizerMiddleware(db *redisEnterpriseDB) dbplugin.Database {
+	return dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
+}
+
+// secretVaults returns the configuration information with the password masked
 func (r *redisEnterpriseDB) secretValues() map[string]string {
 
 	// mask secret values in the configuration

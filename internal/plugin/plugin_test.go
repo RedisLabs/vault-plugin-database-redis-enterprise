@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
-	"github.com/dnaeon/go-vcr/recorder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,54 +24,36 @@ var (
 	database = os.Getenv("RS_DB")
 )
 
-func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool, recorder *recorder.Recorder) *redisEnterpriseDB {
+func setupRedisEnterpriseDB(t *testing.T, database string, enableACL bool) dbplugin.Database {
 	t.Helper()
 
 	request := initializeRequest(url, username, password, database, enableACL)
 
-	client := sdk.NewClient()
-	client.Client.Transport = recorder
-
-	db := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}),
-		client,
-		func(displayName string, roleName string) (string, error) {
-			return displayName + roleName, nil
-		})
+	db, err := New()
+	require.NoError(t, err)
 
 	dbtesting.AssertInitialize(t, db, request)
 	return db
 }
 
 func TestRedisEnterpriseDB_Initialize_Without_Database(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, "", false)
 
-	record(t, "Initialize_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
-
-		db := setupRedisEnterpriseDB(t, "", false, recorder)
-
-		err := db.Close()
-		require.NoError(t, err)
-
-	})
+	err := db.Close()
+	require.NoError(t, err)
 }
 
 func TestRedisEnterpriseDB_Initialize_With_Database(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, database, false)
 
-	record(t, "Initialize_With_Database", func(t *testing.T, recorder *recorder.Recorder) {
-
-		db := setupRedisEnterpriseDB(t, database, false, recorder)
-
-		err := db.Close()
-		require.NoError(t, err)
-
-	})
+	err := db.Close()
+	require.NoError(t, err)
 }
 
 func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 
 	request := initializeRequest(url, username, password, "", true)
-	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
-		return displayName + roleName, nil
-	})
+	db := newRedis(hclog.Default(), sdk.NewClient())
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no database with acl_only")
@@ -81,9 +62,7 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutURL(t *testing.T) {
 
 	request := initializeRequest("", username, password, database, false)
-	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
-		return displayName + roleName, nil
-	})
+	db := newRedis(hclog.Default(), sdk.NewClient())
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no URL")
@@ -92,9 +71,7 @@ func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutURL(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutUsername(t *testing.T) {
 
 	request := initializeRequest(url, "", password, database, false)
-	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
-		return displayName + roleName, nil
-	})
+	db := newRedis(hclog.Default(), sdk.NewClient())
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no URL")
@@ -103,18 +80,32 @@ func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutUsername(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutPassword(t *testing.T) {
 
 	request := initializeRequest(url, username, "", database, false)
-	db := newRedis(hclog.Default(), nil, func(displayName string, roleName string) (string, error) {
-		return displayName + roleName, nil
-	})
+	db := newRedis(hclog.Default(), sdk.NewClient())
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no password")
 }
 
-func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
+func TestRedisEnterpriseDB_SecretValues_passwordSanitisedFromErrors(t *testing.T) {
+	client := &mockSdk{}
+	db := newRedis(hclog.Default(), client)
+	db.config.Password = "find-me"
+	subject := wrapWithSanitizerMiddleware(db)
+
+	ctx := context.Background()
+	client.On("FindUserByName", ctx, "expected-user").Return(sdk.User{}, fmt.Errorf("some error containing the password %s", db.config.Password))
+
+	_, err := subject.UpdateUser(ctx, dbplugin.UpdateUserRequest{
+		Username: "expected-user",
+		Password: &dbplugin.ChangePassword{NewPassword: "foo"},
+	})
+
+	assert.Error(t, err, "some error containing the password [password]")
+}
+
+func assertUserExists(t *testing.T, url string, username string, password string, generatedUser string) {
 	t.Helper()
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	users, err := client.ListUsers(context.TODO())
@@ -123,10 +114,9 @@ func assertUserExists(t *testing.T, recorder *recorder.Recorder, url string, use
 	assert.Contains(t, userNames(users), generatedUser)
 }
 
-func assertUserInRole(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string, roleName string) {
+func assertUserInRole(t *testing.T, url string, username string, password string, generatedUser string, roleName string) {
 	t.Helper()
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	user, err := client.FindUserByName(context.TODO(), generatedUser)
@@ -138,10 +128,9 @@ func assertUserInRole(t *testing.T, recorder *recorder.Recorder, url string, use
 	assert.Equal(t, user.Roles, []int{role.UID})
 }
 
-func assertUserHasACL(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, database string, generatedUser string, aclName string) {
+func assertUserHasACL(t *testing.T, url string, username string, password string, database string, generatedUser string, aclName string) {
 	t.Helper()
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	user, err := client.FindUserByName(context.TODO(), generatedUser)
@@ -159,10 +148,9 @@ func assertUserHasACL(t *testing.T, recorder *recorder.Recorder, url string, use
 	assert.Equal(t, aclName, acl.Name)
 }
 
-func findRoleForUser(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) sdk.Role {
+func findRoleForUser(t *testing.T, url string, username string, password string, generatedUser string) sdk.Role {
 	t.Helper()
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	user, err := client.FindUserByName(context.TODO(), generatedUser)
@@ -176,10 +164,9 @@ func findRoleForUser(t *testing.T, recorder *recorder.Recorder, url string, user
 	return role
 }
 
-func findACLForRole(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, roleName string) sdk.ACL {
+func findACLForRole(t *testing.T, url string, username string, password string, roleName string) sdk.ACL {
 	t.Helper()
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	role, err := client.FindRoleByName(context.Background(), roleName)
@@ -193,10 +180,9 @@ func findACLForRole(t *testing.T, recorder *recorder.Recorder, url string, usern
 	return acl
 }
 
-func findAlternativeACL(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, aclId int) sdk.ACL {
+func findAlternativeACL(t *testing.T, url string, username string, password string, aclId int) sdk.ACL {
 	t.Helper()
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	acls, err := client.ListACLs(context.Background())
@@ -256,9 +242,8 @@ func newUserRequest(role string, acl string) dbplugin.NewUserRequest {
 	return createReq
 }
 
-func assertUserDoesNotExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedUser string) {
+func assertUserDoesNotExists(t *testing.T, url string, username string, password string, generatedUser string) {
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	users, err := client.ListUsers(context.TODO())
@@ -267,9 +252,8 @@ func assertUserDoesNotExists(t *testing.T, recorder *recorder.Recorder, url stri
 	assert.NotContains(t, userNames(users), generatedUser)
 }
 
-func assertRoleDoesNotExists(t *testing.T, recorder *recorder.Recorder, url string, username string, password string, generatedRole string) {
+func assertRoleDoesNotExists(t *testing.T, url string, username string, password string, generatedRole string) {
 	client := sdk.NewClient()
-	client.Client.Transport = recorder
 	client.Initialise(url, username, password)
 
 	roles, err := client.ListRoles(context.TODO())
@@ -278,12 +262,12 @@ func assertRoleDoesNotExists(t *testing.T, recorder *recorder.Recorder, url stri
 	assert.NotContains(t, roleNames(roles), generatedRole)
 }
 
-func teardownUserFromDatabase(t *testing.T, recorder *recorder.Recorder, db *redisEnterpriseDB, generatedUser string) {
+func teardownUserFromDatabase(t *testing.T, db dbplugin.Database, generatedUser string) {
 	t.Helper()
 	dbtesting.AssertDeleteUser(t, db, dbplugin.DeleteUserRequest{
 		Username: generatedUser,
 	})
-	assertUserDoesNotExists(t, recorder, url, username, password, generatedUser)
+	assertUserDoesNotExists(t, url, username, password, generatedUser)
 }
 
 func userNames(users []sdk.User) []string {
