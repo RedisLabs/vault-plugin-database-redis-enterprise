@@ -24,6 +24,7 @@ services:
     environment:
       VAULT_LOCAL_CONFIG: '{"plugin_directory":"/etc/vault/plugins"}'
       VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_LOG_LEVEL: debug
     volumes:
       - ".././bin:/etc/vault/plugins"
     networks:

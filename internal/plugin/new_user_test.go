@@ -285,7 +285,7 @@ func TestRedisEnterpriseDB_NewUser_createRoleFailureRollsBackCorrectly(t *testin
 }
 
 func matchesContext(ctx context.Context) interface{} {
-	return mock.MatchedBy(func(ctx2 context.Context) bool { return ctx2 == ctx })
+	return mock.MatchedBy(func(ctxArg context.Context) bool { return ctxArg == ctx })
 }
 
 func matchesCreateRole(management string, dbName string, displayName string, roleName string) interface{} {
@@ -320,6 +320,10 @@ func matchesCreateUser(displayName string, roleName string, roleId int, password
 		}
 
 		if c.Password != password {
+			return false
+		}
+
+		if c.Email != "" {
 			return false
 		}
 
