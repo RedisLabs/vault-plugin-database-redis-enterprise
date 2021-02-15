@@ -9,6 +9,7 @@ import (
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
+	"github.com/hashicorp/vault/sdk/database/helper/credsutil"
 )
 
 // NewUser creates a new user and authentication credentials in the cluster.
@@ -41,7 +42,16 @@ func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserReq
 		return dbplugin.NewUserResponse{}, fmt.Errorf("no 'role' or 'acl' in creation statement for %s", req.UsernameConfig.RoleName)
 	}
 
-	username, err := r.generateUsername(req.UsernameConfig.DisplayName, req.UsernameConfig.RoleName)
+	// Generate a username which also includes random data (20 characters) and current epoch (11 characters) and the prefix 'v'.
+	// Note that the username is used when generating a role, so the maximum length of the username must allow
+	// space for a database name (up to 63 characters) and a hyphen (maximum username length supported by Redis
+	// is 256)
+	username, err := credsutil.GenerateUsername(
+		credsutil.DisplayName(req.UsernameConfig.DisplayName, 50),
+		credsutil.RoleName(req.UsernameConfig.RoleName, 50),
+		credsutil.MaxLength(192),
+		credsutil.ToLower(),
+	)
 	if err != nil {
 		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot generate username: %w", err)
 	}

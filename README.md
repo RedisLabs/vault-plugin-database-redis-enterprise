@@ -2,7 +2,7 @@
 
 A Redis Enterprise plugin for the HashiCorp Vault Database Secrets Engine.
 
-This is a standalone backend plugin for use with Hashicorp Vault. 
+This is a standalone backend plugin for use with Hashicorp Vault.
 This plugin generates credentials for use with Redis Enterprise Database clusters.
 
 ## Quick Links
@@ -12,12 +12,13 @@ This plugin generates credentials for use with Redis Enterprise Database cluster
 
 ## Development
 
-If you wish to work on this plugin, you'll first need [Go](https://www.golang.org) installed on your machine 
+If you wish to work on this plugin, you'll first need [Go](https://www.golang.org) installed on your machine
 (version 1.15+ is *required*).
 
 Make sure Go is properly installed, including setting up a [GOPATH](https://golang.org/doc/code.html#GOPATH).
 
-To run the tests locally you will need to have [Docker](https://docs.docker.com/get-docker) installed on your machine.
+To run the tests locally you will need to have [Docker](https://docs.docker.com/get-docker) installed on your machine,
+or have access to a Kubernetes cluster such as by using [kind](https://kind.sigs.k8s.io/).
 
 Clone this repository:
 
@@ -30,8 +31,8 @@ or use `go get github.com/RedisLabs/vault-plugin-database-redis-enterprise`
 
 ### Building
 
-To compile this plugin, run `make` or `make build`.  This will put the plugin binary in a local `bin` directory.
-By default this will generate a binary for your local platform and a binary for `linux`/`amd64`.
+To compile this plugin, run `make build`.  This will put the plugin binary in a local `bin` directory.
+By default, this will generate a binary for your local platform and a binary for `linux`/`amd64`.
 
 ```sh
 $ make build
@@ -39,18 +40,17 @@ $ make build
 
 ### Testing
 
-Testing this plugin takes two forms.  The first is the execution of the tests against a set of recorded fixtures
-and the second executes tests against a running Redis Enterprise Cluster.
+Before being able to run the tests, you need to have access to a running Redis Enterprise Cluster.  This can either be
+done by using the [Redis Enterprise Operator](https://docs.redislabs.com/latest/platforms/kubernetes/) to deploy Redis
+into Kubernetes, or by using the [Redis Enterprise container](https://hub.docker.com/r/redislabs/redis) which can be
+started up locally by running `make start-docker`.
 
-To execute the tests against the recorded fixtures run `make test`.  
-Fixtures have been included to allow the tests to execute quickly within the plugin's CI process. 
-
+To execute the tests run `make` or `make test`.
 ```sh
 $ make test
 ```
 
-To execute the tests against an existing live Redis Enterprise cluster run `make test-acc`.
-The plugin's makefile contains default values to locate a Redis Enterprise cluster provisioned through 
+The plugin's makefile contains default values to locate a Redis Enterprise cluster provisioned through
 the makefile.  The following example shows how these values can be overridden to locate your own cluster.
 
 ```sh
@@ -59,14 +59,14 @@ $ export TEST_PASSWORD=xyzzyxyzzy
 $ export TEST_DB_NAME=mydb
 $ export TEST_DB_URL=https://localhost:9443
 
-$ make test-acc
+$ make test
 ```
 
 ## Running Vault + Plugin + Redis Enterprise
 
-The repo provides a means to run a local Vault server configured with the Vault Plugin and backed by a Redis Enterprise 
-cluster.  To start the Vault server and Redis Enterprise cluster run `make start-docker` followed by `make configure-docker` 
-to configure Vault with a locally built plugin binary. 
+The repo provides a means to run a local Vault server configured with the Vault Plugin and backed by a Redis Enterprise
+cluster.  To start the Vault server and Redis Enterprise cluster run `make start-docker` followed by `make configure-docker`
+to configure Vault with a locally built plugin binary.
 
 ```sh
 $ make start-docker
@@ -89,11 +89,11 @@ $ make configure-docker
 ...
 ```
 
-A docker compose file representing a Redis Enterprise cluster and a Vault server will be provisioned. 
-Once setup is complete run `make test-acc` to execute the acceptance test against the local containers.
+A docker compose file representing a Redis Enterprise cluster and a Vault server will be provisioned.
+Once setup is complete run `make test` to execute the acceptance test against the local containers.
 
 ```sh
-$ make test-acc
+$ make test
 ```
 
 After local testing is complete the docker containers can be removed through the `make stop-docker`.
@@ -111,9 +111,9 @@ Removing network bootstrap_vault
 
 ### Building for Multiple Architectures
 
-Vault operates across a number of different architectures and as a result Vault plugins must also be built to execute 
-across the same architectures.  This repo supports building the appropriate binaries through [goreleaser](https://github.com/goreleaser/goreleaser) 
-and these steps are coordinated through the repo's GitHub Action workflows.  To test changes to the gotrelease 
+Vault operates across a number of different architectures and as a result Vault plugins must also be built to execute
+across the same architectures.  This repo supports building the appropriate binaries through [goreleaser](https://github.com/goreleaser/goreleaser)
+and these steps are coordinated through the repo's GitHub Action workflows.  To test changes to the goreleaser
 configuration or to build the different binaries locally the following command can be executed.
 
 ```sh
@@ -122,7 +122,7 @@ $ goreleaser --snapshot --skip-publish --rm-dist
 
 A `dist` directory will be created and there will be one binary for each OS/Arch combination defined in the root
 `goreleaser.yml` file.  A SHA256SUMS file will also be produced with entries for each binary.  
-The SHA values can be used when installing the plugin to a running Vault server. 
+The SHA values can be used when installing the plugin to a running Vault server.
 
-**Note:**  If you are running Vault via docker the plugin architecture if likely to be `linux/amd64`.
+**Note:**  If you are running Vault via Docker the plugin architecture if likely to be `linux/amd64`.
 This binary is also produced through the `make build`

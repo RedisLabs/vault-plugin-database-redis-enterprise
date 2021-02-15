@@ -14,5 +14,113 @@ jobs:
           go-version: 1.15
       - name: Checkout Repository
         uses: actions/checkout@v2.3.4
+
+      - name: Set up Kubernetes using kind
+        uses: engineerd/setup-kind@v0.5.0
+        with:
+          config: bootstrap/kind-config.yml
+          version: v0.9.0
+
+      - name: Test Kubernetes
+        run: kubectl cluster-info
+
+      - name: Install Redis Enterprise operator
+        run: |
+          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v6.0.12-5/bundle.yaml | kubectl apply -f -
+          kubectl rollout status deployment/redis-enterprise-operator --watch --timeout=5m || kubectl describe pod -lname=redis-enterprise-operator
+
+      - name: Install cluster
+        timeout-minutes: 5
+        run: |
+          cat <<EOF |
+          apiVersion: "app.redislabs.com/v1"
+          kind: "RedisEnterpriseCluster"
+          metadata:
+            name: "test-cluster"
+          spec:
+            nodes: 1
+            redisEnterpriseNodeResources:
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+              requests:
+                cpu: 25m
+                memory: 2Gi
+          EOF
+          kubectl apply -f -
+          while [[ "$(kubectl get redisenterpriseclusters.app.redislabs.com test-cluster --output jsonpath='{.status.state}')" != "Running" ]]; do
+            echo "waiting for the cluster to be running"
+            kubectl get redisenterpriseclusters.app.redislabs.com test-cluster --output jsonpath='{.status}{"\n"}'
+            sleep 5;
+          done
+
+      - name: Install database
+        run: |
+          cat <<EOF |
+          apiVersion: app.redislabs.com/v1alpha1
+          kind: RedisEnterpriseDatabase
+          metadata:
+            name: mydb
+          spec:
+            memory: 100MB
+            redisEnterpriseCluster:
+              name: test-cluster
+            rolesPermissions:
+            - type: redis-enterprise
+              role: "DB Member"
+              acl: "Not Dangerous"
+          EOF
+          kubectl apply -f -
+
+      - name: Install a service to expose the Redis cluster on a port
+        run: |
+          cat <<EOF |
+          apiVersion: v1
+          kind: Service
+          metadata:
+            labels:
+              app: redis-enterprise
+              redis.io/cluster: test-cluster
+            name: external-access
+          spec:
+            ports:
+            - name: api
+              port: 9443
+              protocol: TCP
+              targetPort: 9443
+              nodePort: 30000
+            selector:
+              app: redis-enterprise
+              redis.io/cluster: test-cluster
+              redis.io/role: node
+            sessionAffinity: None
+            type: NodePort
+          EOF
+          kubectl apply -f -
+
+      - name: Set username
+        run: echo "TEST_USERNAME=$(kubectl get secret test-cluster --output jsonpath='{.data.username}' | base64 -d)" >> $GITHUB_ENV
+      - name: Set password
+        run: echo "TEST_PASSWORD=$(kubectl get secret test-cluster --output jsonpath='{.data.password}' | base64 -d)" >> $GITHUB_ENV
+      - name: Set URL
+        run: echo "TEST_DB_URL=https://localhost:$(kubectl get svc external-access --output jsonpath='{.spec.ports[].nodePort}')" >> $GITHUB_ENV
+
+      # This check is ensure that the cluster is running and accessible so the CI fails fast,
+      # rather than waiting several minutes for all of the Go tests to eventually time out
+      - name: Check cluster access
+        timeout-minutes: 2
+        run: |
+          while [[ "$(curl --silent --fail --insecure --user ${TEST_USERNAME}:${TEST_PASSWORD} --output /dev/null --write-out '%{http_code}' ${TEST_DB_URL}/v1/bootstrap)" != "200" ]]; do
+            echo "waiting for the cluster to be ready"
+            sleep 5;
+          done
+          curl --silent --fail --insecure "${TEST_DB_URL}/v1/bootstrap" --user "${TEST_USERNAME}:${TEST_PASSWORD}"
+          curl --silent --fail --insecure "${TEST_DB_URL}/v1/bdbs" --user "${TEST_USERNAME}:${TEST_PASSWORD}"
+          while [ "$(curl --silent --fail --insecure --user "${TEST_USERNAME}:${TEST_PASSWORD}" ${TEST_DB_URL}/v1/bdbs | jq --arg db_name "mydb" --raw-output '.[] | select(.name == $db_name) | .status')" != "active" ]; do
+            echo "waiting for the database to be ready"
+            echo $(curl --silent --fail --insecure --user "${TEST_USERNAME}:${TEST_PASSWORD}" ${TEST_DB_URL}/v1/bdbs | jq --compact-output --arg db_name "mydb" --raw-output '.[] | select(.name == $db_name)')
+            sleep 1;
+          done
+
       - name: Build
         run: make

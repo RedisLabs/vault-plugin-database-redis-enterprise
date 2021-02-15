@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
-	"github.com/dnaeon/go-vcr/recorder"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
@@ -19,205 +20,165 @@ import (
 )
 
 func TestRedisEnterpriseDB_NewUser_Without_Database(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, "", false)
 
-	record(t, "NewUser_Without_Database", func(t *testing.T, recorder *recorder.Recorder) {
+	createRequest := dbplugin.NewUserRequest{
+		UsernameConfig: dbplugin.UsernameMetadata{
+			DisplayName: "tester_new_without_db",
+			RoleName:    "test",
+		},
+		Statements: dbplugin.Statements{
+			Commands: []string{`{"role":"DB Member"}`},
+		},
+		Password:   "testing",
+		Expiration: time.Now().Add(time.Minute),
+	}
 
-		db := setupRedisEnterpriseDB(t, "", false, recorder)
+	res := dbtesting.AssertNewUser(t, db, createRequest)
 
-		createRequest := dbplugin.NewUserRequest{
-			UsernameConfig: dbplugin.UsernameMetadata{
-				DisplayName: "tester_new_without_db",
-				RoleName:    "test",
-			},
-			Statements: dbplugin.Statements{
-				Commands: []string{`{"role":"DB Member"}`},
-			},
-			Password:   "testing",
-			Expiration: time.Now().Add(time.Minute),
-		}
+	assertUserExists(t, url, username, password, res.Username)
 
-		res := dbtesting.AssertNewUser(t, db, createRequest)
-
-		assertUserExists(t, recorder, url, username, password, res.Username)
-
-		teardownUserFromDatabase(t, recorder, db, res.Username)
-
-	})
-
+	teardownUserFromDatabase(t, db, res.Username)
 }
 
 func TestRedisEnterpriseDB_NewUser_With_Database(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, database, false)
 
-	record(t, "NewUser_With_Database", func(t *testing.T, recorder *recorder.Recorder) {
+	createRequest := dbplugin.NewUserRequest{
+		UsernameConfig: dbplugin.UsernameMetadata{
+			DisplayName: "tester_new_with_db",
+			RoleName:    "test",
+		},
+		Statements: dbplugin.Statements{
+			Commands: []string{`{"role":"DB Member"}`},
+		},
+		Password:   "testing",
+		Expiration: time.Now().Add(time.Minute),
+	}
 
-		db := setupRedisEnterpriseDB(t, database, false, recorder)
+	res := dbtesting.AssertNewUser(t, db, createRequest)
 
-		createRequest := dbplugin.NewUserRequest{
-			UsernameConfig: dbplugin.UsernameMetadata{
-				DisplayName: "tester_new_with_db",
-				RoleName:    "test",
-			},
-			Statements: dbplugin.Statements{
-				Commands: []string{`{"role":"DB Member"}`},
-			},
-			Password:   "testing",
-			Expiration: time.Now().Add(time.Minute),
-		}
+	assertUserExists(t, url, username, password, res.Username)
 
-		res := dbtesting.AssertNewUser(t, db, createRequest)
-
-		assertUserExists(t, recorder, url, username, password, res.Username)
-
-		teardownUserFromDatabase(t, recorder, db, res.Username)
-	})
+	teardownUserFromDatabase(t, db, res.Username)
 }
 
 func TestRedisEnterpriseDB_NewUser_roleVerifiesACL(t *testing.T) {
+	roleName := "DB Member"
 
-	record(t, "NewUser_roleVerifiesACL", func(t *testing.T, recorder *recorder.Recorder) {
+	plugin := setupRedisEnterpriseDB(t, database, false)
 
-		roleName := "DB Member"
+	acl := findACLForRole(t, url, username, password, roleName)
 
-		plugin := setupRedisEnterpriseDB(t, database, false, recorder)
+	createRequest := dbplugin.NewUserRequest{
+		UsernameConfig: dbplugin.UsernameMetadata{
+			DisplayName: "tester_new_role_verifies_acl",
+			RoleName:    "test",
+		},
+		Statements: dbplugin.Statements{
+			Commands: []string{fmt.Sprintf(`{"role":%q, "acl": %q}`, roleName, acl.Name)},
+		},
+		Password:   "testing",
+		Expiration: time.Now().Add(time.Minute),
+	}
 
-		acl := findACLForRole(t, recorder, url, username, password, roleName)
+	res := dbtesting.AssertNewUser(t, plugin, createRequest)
 
-		createRequest := dbplugin.NewUserRequest{
-			UsernameConfig: dbplugin.UsernameMetadata{
-				DisplayName: "tester_new_role_verifies_acl",
-				RoleName:    "test",
-			},
-			Statements: dbplugin.Statements{
-				Commands: []string{fmt.Sprintf(`{"role":%q, "acl": %q}`, roleName, acl.Name)},
-			},
-			Password:   "testing",
-			Expiration: time.Now().Add(time.Minute),
-		}
+	assertUserExists(t, url, username, password, res.Username)
 
-		res := dbtesting.AssertNewUser(t, plugin, createRequest)
+	assertUserInRole(t, url, username, password, res.Username, roleName)
 
-		assertUserExists(t, recorder, url, username, password, res.Username)
-
-		assertUserInRole(t, recorder, url, username, password, res.Username, roleName)
-
-		teardownUserFromDatabase(t, recorder, plugin, res.Username)
-	})
+	teardownUserFromDatabase(t, plugin, res.Username)
 }
 
 func TestRedisEnterpriseDB_NewUser_rejectsRoleWithDifferentACL(t *testing.T) {
+	roleName := "DB Member"
 
-	record(t, "NewUser_rejectsRoleWithDifferentACL", func(t *testing.T, recorder *recorder.Recorder) {
+	plugin := setupRedisEnterpriseDB(t, database, false)
 
-		roleName := "DB Member"
+	acl := findACLForRole(t, url, username, password, roleName)
 
-		plugin := setupRedisEnterpriseDB(t, database, false, recorder)
+	altACL := findAlternativeACL(t, url, username, password, acl.UID)
 
-		acl := findACLForRole(t, recorder, url, username, password, roleName)
+	createReq := newUserRequest(roleName, altACL.Name)
 
-		altACL := findAlternativeACL(t, recorder, url, username, password, acl.UID)
+	_, err := plugin.NewUser(context.Background(), createReq)
 
-		createReq := newUserRequest(roleName, altACL.Name)
-
-		_, err := plugin.NewUser(context.Background(), createReq)
-
-		assert.Error(t, err, "Failed to reject a role with the wrong ACL")
-
-	})
+	assert.Error(t, err, "Failed to reject a role with the wrong ACL")
 }
 
 func TestRedisEnterpriseDB_NewUser_With_Database_With_ACL(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, database, true)
 
-	record(t, "NewUser_With_Database_With_ACL", func(t *testing.T, recorder *recorder.Recorder) {
+	aclName := "Not Dangerous"
 
-		db := setupRedisEnterpriseDB(t, database, true, recorder)
+	createRequest := dbplugin.NewUserRequest{
+		UsernameConfig: dbplugin.UsernameMetadata{
+			DisplayName: "tester_new_with_db_with_acl",
+			RoleName:    "test",
+		},
+		Statements: dbplugin.Statements{
+			Commands: []string{fmt.Sprintf(`{"acl":%q}`, aclName)},
+		},
+		Password:   "testing",
+		Expiration: time.Now().Add(time.Minute),
+	}
 
-		aclName := "Not Dangerous"
+	res := dbtesting.AssertNewUser(t, db, createRequest)
 
-		createRequest := dbplugin.NewUserRequest{
-			UsernameConfig: dbplugin.UsernameMetadata{
-				DisplayName: "tester_new_with_db_with_acl",
-				RoleName:    "test",
-			},
-			Statements: dbplugin.Statements{
-				Commands: []string{fmt.Sprintf(`{"acl":%q}`, aclName)},
-			},
-			Password:   "testing",
-			Expiration: time.Now().Add(time.Minute),
-		}
+	assertUserExists(t, url, username, password, res.Username)
 
-		res := dbtesting.AssertNewUser(t, db, createRequest)
+	assertUserHasACL(t, url, username, password, database, res.Username, aclName)
 
-		assertUserExists(t, recorder, url, username, password, res.Username)
-
-		assertUserHasACL(t, recorder, url, username, password, database, res.Username, aclName)
-
-		teardownUserFromDatabase(t, recorder, db, res.Username)
-	})
-
+	teardownUserFromDatabase(t, db, res.Username)
 }
 
 func TestRedisEnterpriseDB_NewUser_Detect_Errors_Cluster(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, "", false)
 
-	record(t, "NewUser_Detect_Errors_Cluster", func(t *testing.T, recorder *recorder.Recorder) {
+	for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}} {
 
-		db := setupRedisEnterpriseDB(t, "", false, recorder)
+		t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
+			createReq := newUserRequest(spec[0], spec[1])
 
-		for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}} {
-
-			t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
-				createReq := newUserRequest(spec[0], spec[1])
-
-				_, err := db.NewUser(context.Background(), createReq)
-				assert.Errorf(t, err, "Failed to detect NewUser (cluster) error with role (%s) and acl (%s)", spec[0], spec[1])
-			})
-		}
-	})
+			_, err := db.NewUser(context.Background(), createReq)
+			assert.Errorf(t, err, "Failed to detect NewUser (cluster) error with role (%s) and acl (%s)", spec[0], spec[1])
+		})
+	}
 }
 
 func TestRedisEnterpriseDB_NewUser_Detect_Errors_With_Database_Without_ACL(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, database, false)
 
-	record(t, "NewUser_Detect_Errors_With_Database_Without_ACL", func(t *testing.T, recorder *recorder.Recorder) {
+	for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}, {"garbage", ""}} {
 
-		db := setupRedisEnterpriseDB(t, database, false, recorder)
+		t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
+			createReq := newUserRequest(spec[0], spec[1])
 
-		for _, spec := range [][]string{{"", ""}, {"", "Not Dangerous"}, {"garbage", ""}} {
-
-			t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
-				createReq := newUserRequest(spec[0], spec[1])
-
-				_, err := db.NewUser(context.Background(), createReq)
-				assert.Errorf(t, err, "Failed to detect NewUser (database, no acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
-			})
-		}
-	})
+			_, err := db.NewUser(context.Background(), createReq)
+			assert.Errorf(t, err, "Failed to detect NewUser (database, no acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
+		})
+	}
 }
 
 func TestRedisEnterpriseDB_NewUser_Detect_Errors_With_Database_With_ACL(t *testing.T) {
+	db := setupRedisEnterpriseDB(t, database, true)
 
-	record(t, "NewUser_Detect_Errors_With_Database_With_ACL", func(t *testing.T, recorder *recorder.Recorder) {
+	for _, spec := range [][]string{{"", ""}, {"", "garbage"}} {
 
-		db := setupRedisEnterpriseDB(t, database, true, recorder)
+		t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
+			createReq := newUserRequest(spec[0], spec[1])
 
-		for _, spec := range [][]string{{"", ""}, {"", "garbage"}} {
-
-			t.Run(fmt.Sprintf("%v", spec), func(t *testing.T) {
-				createReq := newUserRequest(spec[0], spec[1])
-
-				_, err := db.NewUser(context.Background(), createReq)
-				assert.Errorf(t, err, "Failed to detect NewUser (database, acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
-			})
-		}
-	})
+			_, err := db.NewUser(context.Background(), createReq)
+			assert.Errorf(t, err, "Failed to detect NewUser (database, acl_only) error with role (%s) and acl (%s)", spec[0], spec[1])
+		})
+	}
 }
 
 func TestRedisEnterpriseDB_NewUser_createUserWithAclFailureRollsBackCorrectly(t *testing.T) {
 
 	client := &mockSdk{}
-	subject := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}),
-		client,
-		func(displayName string, roleName string) (string, error) {
-			return displayName + roleName, nil
-		})
+	subject := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}), client)
 	subject.config = config{
 		Database: "mocked",
 		Features: "acl_only",
@@ -229,10 +190,7 @@ func TestRedisEnterpriseDB_NewUser_createUserWithAclFailureRollsBackCorrectly(t 
 	ctx := context.TODO()
 
 	client.On("FindACLByName", ctx, "expected").Return(&sdk.ACL{UID: 3}, nil)
-	client.On("CreateRole", ctx, sdk.CreateRole{
-		Name:       "mocked-test-user",
-		Management: "db_member",
-	}).Return(sdk.Role{UID: 4}, nil)
+	client.On("CreateRole", matchesContext(ctx), matchesCreateRole("db_member", "mocked", "test", "user")).Return(sdk.Role{UID: 4}, nil)
 	client.On("FindDatabaseByName", ctx, "mocked").Return(sdk.Database{
 		UID: 5,
 		RolePermissions: []sdk.RolePermission{
@@ -254,18 +212,12 @@ func TestRedisEnterpriseDB_NewUser_createUserWithAclFailureRollsBackCorrectly(t 
 			},
 		},
 	}).Return(nil)
-	client.On("CreateUser", ctx, sdk.CreateUser{
-		Name:        "test-user",
-		Password:    "1234",
-		Roles:       []int{4},
-		EmailAlerts: false,
-		AuthMethod:  "regular",
-	}).Return(sdk.User{}, expectedError)
+	client.On("CreateUser", matchesContext(ctx), matchesCreateUser("test", "user", 4, "1234")).Return(sdk.User{}, expectedError)
 	client.On("DeleteRole", ctx, 4).Return(embeddedError)
 
 	_, err := subject.NewUser(ctx, dbplugin.NewUserRequest{
 		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "test-",
+			DisplayName: "test",
 			RoleName:    "user",
 		},
 		Statements: dbplugin.Statements{
@@ -281,11 +233,7 @@ func TestRedisEnterpriseDB_NewUser_createUserWithAclFailureRollsBackCorrectly(t 
 func TestRedisEnterpriseDB_NewUser_createRoleFailureRollsBackCorrectly(t *testing.T) {
 
 	client := &mockSdk{}
-	subject := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}),
-		client,
-		func(displayName string, roleName string) (string, error) {
-			return displayName + roleName, nil
-		})
+	subject := newRedis(hclog.New(&hclog.LoggerOptions{Level: hclog.Trace}), client)
 	subject.config = config{
 		Database: "mocked",
 		Features: "acl_only",
@@ -297,10 +245,7 @@ func TestRedisEnterpriseDB_NewUser_createRoleFailureRollsBackCorrectly(t *testin
 	ctx := context.TODO()
 
 	client.On("FindACLByName", ctx, "expected").Return(&sdk.ACL{UID: 3}, nil)
-	client.On("CreateRole", ctx, sdk.CreateRole{
-		Name:       "mocked-test-user",
-		Management: "db_member",
-	}).Return(sdk.Role{UID: 4}, nil)
+	client.On("CreateRole", matchesContext(ctx), matchesCreateRole("db_member", "mocked", "test", "user")).Return(sdk.Role{UID: 4}, nil)
 	client.On("FindDatabaseByName", ctx, "mocked").Return(sdk.Database{
 		UID: 5,
 		RolePermissions: []sdk.RolePermission{
@@ -326,7 +271,7 @@ func TestRedisEnterpriseDB_NewUser_createRoleFailureRollsBackCorrectly(t *testin
 
 	_, err := subject.NewUser(ctx, dbplugin.NewUserRequest{
 		UsernameConfig: dbplugin.UsernameMetadata{
-			DisplayName: "test-",
+			DisplayName: "test",
 			RoleName:    "user",
 		},
 		Statements: dbplugin.Statements{
@@ -337,4 +282,58 @@ func TestRedisEnterpriseDB_NewUser_createRoleFailureRollsBackCorrectly(t *testin
 
 	require.Error(t, err)
 	assert.Equal(t, multierror.Append(expectedError, embeddedError), err)
+}
+
+func matchesContext(ctx context.Context) interface{} {
+	return mock.MatchedBy(func(ctx2 context.Context) bool { return ctx2 == ctx })
+}
+
+func matchesCreateRole(management string, dbName string, displayName string, roleName string) interface{} {
+	return mock.MatchedBy(func(r sdk.CreateRole) bool {
+		if r.Management != management {
+			return false
+		}
+
+		if !strings.HasPrefix(r.Name, dbName) {
+			return false
+		}
+
+		parts := strings.Split(r.Name, "_")
+		if len(parts) < 3 {
+			return false
+		}
+		if parts[1] != displayName || parts[2] != roleName {
+			return false
+		}
+		return true
+	})
+}
+
+func matchesCreateUser(displayName string, roleName string, roleId int, password string) interface{} {
+	return mock.MatchedBy(func(c sdk.CreateUser) bool {
+		if c.AuthMethod != "regular" {
+			return false
+		}
+
+		if c.EmailAlerts {
+			return false
+		}
+
+		if c.Password != password {
+			return false
+		}
+
+		if len(c.Roles) != 1 || c.Roles[0] != roleId {
+			return false
+		}
+
+		parts := strings.Split(c.Name, "_")
+		if len(parts) < 2 {
+			return false
+		}
+		if parts[1] != displayName || parts[2] != roleName {
+			return false
+		}
+		return true
+	})
 }
