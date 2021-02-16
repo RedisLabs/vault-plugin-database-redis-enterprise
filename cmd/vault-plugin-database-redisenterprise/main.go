@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 	"os"
-   dbplugin "github.com/hashicorp/vault/sdk/database/dbplugin/v5"
-	redisenterprise "github.com/RedisLabs/vault-plugin-database-redisenterprise"
+
+	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/plugin"
+	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 )
 
 func main() {
@@ -16,7 +17,7 @@ func main() {
 
 // Run starts serving the plugin
 func Run() error {
-	db, err := redisenterprise.New()
+	db, err := plugin.New()
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,48 @@
+before:
+  hooks:
+    - go mod download
+builds:
+  - env:
+      - CGO_ENABLED=0
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    main: ./cmd/vault-plugin-database-redisenterprise
+    flags:
+      - -trimpath
+    ldflags:
+      - '-X github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/version.Version={{.Version}} -X github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/version.GitCommit={{.Commit}}'
+    # The different architectures that Vault supports
+    goos:
+      - darwin
+      - windows
+      - linux
+      - freebsd
+      - netbsd
+      - openbsd
+      - solaris
+    goarch:
+      - '386'
+      - amd64
+      - arm
+      - arm64
+    ignore:
+      - goos: freebsd
+        goarch: arm64
+      - goos: netbsd
+        goarch: arm
+      - goos: netbsd
+        goarch: arm64
+      - goos: openbsd
+        goarch: arm
+      - goos: openbsd
+        goarch: arm64
+    binary: '{{ .ProjectName }}_{{ .Version }}'
+archives:
+  - format: binary
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+  algorithm: sha256
+release:
+  draft: true
+changelog:
+  skip: true
