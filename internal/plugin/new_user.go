@@ -35,7 +35,7 @@ func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserReq
 
 	var s statement
 	if err := json.Unmarshal([]byte(req.Statements.Commands[0]), &s); err != nil {
-		return dbplugin.NewUserResponse{}, errors.New("cannot parse JSON for db role")
+		return dbplugin.NewUserResponse{}, fmt.Errorf("cannot parse JSON for db role: %w", err)
 	}
 
 	if !s.hasRole() && !s.hasACL() {
