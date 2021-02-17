@@ -5,31 +5,44 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 type Client struct {
 	url      string
 	username string
 	password string
-	Client   *http.Client
+	client   *http.Client
+	log      hclog.Logger
 }
 
 // The timeout for the REST client requests.
 const timeout = 60
 
-func NewClient() *Client {
+func NewClient(log hclog.Logger) *Client {
 	return &Client{
-		Client: &http.Client{
+		client: &http.Client{
 			Timeout: timeout * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+
+				// Values copied from http.DefaultTransport
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
 			},
 		},
+		log: log,
 	}
 }
 
@@ -40,7 +53,7 @@ func (c *Client) Initialise(url string, username string, password string) {
 }
 
 func (c *Client) Close() error {
-	c.Client.CloseIdleConnections()
+	c.client.CloseIdleConnections()
 	return nil
 }
 
@@ -64,12 +77,12 @@ func (c *Client) request(ctx context.Context, method string, path string, reques
 		req.Header.Set("Content-Type", "application/json;charset=utf-8")
 	}
 
-	res, err := c.Client.Do(req)
+	res, err := c.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("unable to perform request %s %s: %w", method, path, err)
 	}
 
-	defer res.Body.Close()
+	defer exhaustCloseWithLogOnError(c.log, res.Body)
 
 	if res.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(res.Body)
@@ -91,4 +104,22 @@ func (c *Client) request(ctx context.Context, method string, path string, reques
 	}
 
 	return nil
+}
+
+// exhaustCloseWithLogOnError completely drains an io.ReadCloser, such as the body of an http.Response. Draining and
+// closing the response body is important to allow the connection to be reused.
+//
+// From the documentation of the body field on http.Response:
+//   The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive" TCP connections if the Body is not read to completion and closed.
+func exhaustCloseWithLogOnError(log hclog.Logger, r io.ReadCloser) {
+	if _, err := io.Copy(ioutil.Discard, r); err != nil {
+		log.Warn("failed to exhaust reader, performance may be impacted", "err", err)
+	}
+
+	err := r.Close()
+	if err == nil || errors.Is(err, os.ErrClosed) {
+		return
+	}
+
+	log.Warn("failed to close reader", "err", err)
 }

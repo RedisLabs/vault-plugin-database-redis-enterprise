@@ -53,7 +53,7 @@ func TestRedisEnterpriseDB_Initialize_With_Database(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 
 	request := initializeRequest(url, username, password, "", true)
-	db := newRedis(hclog.Default(), sdk.NewClient())
+	db := newRedis(hclog.Default(), sdk.NewClient(hclog.Default()))
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no database with acl_only")
@@ -62,7 +62,7 @@ func TestRedisEnterpriseDB_Initialize_Without_Database_With_ACL(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutURL(t *testing.T) {
 
 	request := initializeRequest("", username, password, database, false)
-	db := newRedis(hclog.Default(), sdk.NewClient())
+	db := newRedis(hclog.Default(), sdk.NewClient(hclog.Default()))
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no URL")
@@ -71,7 +71,7 @@ func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutURL(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutUsername(t *testing.T) {
 
 	request := initializeRequest(url, "", password, database, false)
-	db := newRedis(hclog.Default(), sdk.NewClient())
+	db := newRedis(hclog.Default(), sdk.NewClient(hclog.Default()))
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no URL")
@@ -80,7 +80,7 @@ func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutUsername(t *testing.T) {
 func TestRedisEnterpriseDB_Initialize_shouldErrorWithoutPassword(t *testing.T) {
 
 	request := initializeRequest(url, username, "", database, false)
-	db := newRedis(hclog.Default(), sdk.NewClient())
+	db := newRedis(hclog.Default(), sdk.NewClient(hclog.Default()))
 
 	_, err := db.Initialize(context.Background(), request)
 	assert.Error(t, err, "Failed to detect no password")
@@ -105,7 +105,7 @@ func TestRedisEnterpriseDB_SecretValues_passwordSanitisedFromErrors(t *testing.T
 
 func assertUserExists(t *testing.T, url string, username string, password string, generatedUser string) {
 	t.Helper()
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	users, err := client.ListUsers(context.TODO())
@@ -116,7 +116,7 @@ func assertUserExists(t *testing.T, url string, username string, password string
 
 func assertUserInRole(t *testing.T, url string, username string, password string, generatedUser string, roleName string) {
 	t.Helper()
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	user, err := client.FindUserByName(context.TODO(), generatedUser)
@@ -130,7 +130,7 @@ func assertUserInRole(t *testing.T, url string, username string, password string
 
 func assertUserHasACL(t *testing.T, url string, username string, password string, database string, generatedUser string, aclName string) {
 	t.Helper()
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	user, err := client.FindUserByName(context.TODO(), generatedUser)
@@ -150,7 +150,7 @@ func assertUserHasACL(t *testing.T, url string, username string, password string
 
 func findRoleForUser(t *testing.T, url string, username string, password string, generatedUser string) sdk.Role {
 	t.Helper()
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	user, err := client.FindUserByName(context.TODO(), generatedUser)
@@ -166,7 +166,7 @@ func findRoleForUser(t *testing.T, url string, username string, password string,
 
 func findACLForRole(t *testing.T, url string, username string, password string, roleName string) sdk.ACL {
 	t.Helper()
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	role, err := client.FindRoleByName(context.Background(), roleName)
@@ -182,7 +182,7 @@ func findACLForRole(t *testing.T, url string, username string, password string, 
 
 func findAlternativeACL(t *testing.T, url string, username string, password string, aclId int) sdk.ACL {
 	t.Helper()
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	acls, err := client.ListACLs(context.Background())
@@ -243,7 +243,7 @@ func newUserRequest(role string, acl string) dbplugin.NewUserRequest {
 }
 
 func assertUserDoesNotExists(t *testing.T, url string, username string, password string, generatedUser string) {
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	users, err := client.ListUsers(context.TODO())
@@ -253,7 +253,7 @@ func assertUserDoesNotExists(t *testing.T, url string, username string, password
 }
 
 func assertRoleDoesNotExists(t *testing.T, url string, username string, password string, generatedRole string) {
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	roles, err := client.ListRoles(context.TODO())

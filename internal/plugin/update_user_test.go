@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/RedisLabs/vault-plugin-database-redisenterprise/internal/sdk"
+	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +32,7 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 
 	userResponse := dbtesting.AssertNewUser(t, db, createReq)
 
-	client := sdk.NewClient()
+	client := sdk.NewClient(hclog.Default())
 	client.Initialise(url, username, password)
 
 	beforeUpdate, err := client.FindUserByName(context.TODO(), userResponse.Username)
