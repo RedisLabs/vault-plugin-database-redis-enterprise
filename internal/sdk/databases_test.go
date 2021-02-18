@@ -57,7 +57,7 @@ func TestClient_UpdateDatabaseWithRetry_retries(t *testing.T) {
 		url:      server.URL,
 		username: expectedUsername,
 		password: expectedPassword,
-		Client:   http.DefaultClient,
+		client:   http.DefaultClient,
 	}
 
 	err := subject.UpdateDatabaseWithRetry(context.TODO(), 3, UpdateDatabase{
@@ -118,7 +118,7 @@ func TestClient_UpdateDatabaseWithRetry_givesUpOnError(t *testing.T) {
 		url:      server.URL,
 		username: "expected",
 		password: "Password",
-		Client:   http.DefaultClient,
+		client:   http.DefaultClient,
 	}
 
 	err := subject.UpdateDatabaseWithRetry(context.TODO(), 3, UpdateDatabase{

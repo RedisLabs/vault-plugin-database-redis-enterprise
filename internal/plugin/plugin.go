@@ -44,7 +44,7 @@ func New() (dbplugin.Database, error) {
 		JSONFormat: jsonLogging,
 	})
 
-	client := sdk.NewClient()
+	client := sdk.NewClient(logger)
 
 	db := newRedis(logger, client)
 	return wrapWithSanitizerMiddleware(db), nil

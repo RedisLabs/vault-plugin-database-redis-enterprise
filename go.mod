@@ -1,6 +1,6 @@
 module github.com/RedisLabs/vault-plugin-database-redisenterprise
 
-go 1.14
+go 1.15
 
 require (
 	github.com/hashicorp/go-hclog v0.14.1
