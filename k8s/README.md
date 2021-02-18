@@ -47,6 +47,12 @@ vault operator unseal
 vault operator unseal
 ```
 
+Get the sha256:
+
+```
+shasum -a 256 ../bin/vault-plugin-database-redisenterprise_linux_amd64 | awk '{print $1}'
+```
+
 Setup your vault token and enable the plugin by replacing the sha256 of
 the plugin in the last part of the `vault write ... sha256=...`:
 
@@ -57,6 +63,21 @@ vault secrets enable database
 ```
 
 ## Setup a database role
+
+Throughout this section we'll assume a database created with the following CR named `mydb`:
+
+```YAML
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseDatabase
+metadata:
+  name: mydb
+spec:
+  memory: 100MB
+  rolesPermissions:
+  - type: redis-enterprise
+    role: "DB Member"
+    acl: "Not Dangerous"
+```
 
 Assuming a cluster with a name of "test" in a "redis" namespace, you can
 get the credentials for the cluster administrator:
@@ -112,8 +133,27 @@ reading the vault database role path via the vault CLI within the vault
 pod.
 
 Get a credential for your database via :
+
 ```
 vault read database/creds/mydb
+```
+
+which will output something similar to:
+
+```
+Key                Value
+---                -----
+lease_id           database/creds/mydb/Vhpim6mizcc4UOKfEpmTSLj5
+lease_duration     3m
+lease_renewable    true
+password           7L-YHEbMAQB38CtwAF5l
+username           v_root_mydb_ychqg0ueic1abdkyehdi_1613680470
+```
+
+In the Redis CLI, you can now do:
+
+```
+AUTH v_root_mydb_ychqg0ueic1abdkyehdi_1613680470 7L-YHEbMAQB38CtwAF5l
 ```
 
 ## Using the sidecar injector
