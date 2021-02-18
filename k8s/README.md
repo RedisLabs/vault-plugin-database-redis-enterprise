@@ -13,7 +13,7 @@ helm install vault hashicorp/vault --namespace vault -f override-values.yaml
 Once running, copy the plugin to the container:
 
 ```
-kubectl cp -n vault ../vault-plugin-database-redisenterprise_linux_amd64 vault-0:/usr/local/libexec/vault
+kubectl cp -n vault ../bin/vault-plugin-database-redisenterprise_linux_amd64 vault-0:/usr/local/libexec/vault
 ```
 
 Attach to vault:
