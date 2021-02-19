@@ -10,6 +10,7 @@ This plugin generates credentials for use with Redis Enterprise Database cluster
 - [Vault Website](https://www.vaultproject.io) - primarily the area focused on
   [Custom Database Secrets Engine](https://www.vaultproject.io/docs/secrets/databases/custom)
 - [Vault Github Project](https://www.github.com/hashicorp/vault)
+- [Plugin Architecture](ARCHITECTURE.md)
 
 ## Guides
 - [Using the plugin with Redis Enterprise](docs/guides/using-the-plugin-with-redis-ent.md)
