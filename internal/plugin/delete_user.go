@@ -38,7 +38,7 @@ func (r *redisEnterpriseDB) findAndDeleteUser(ctx context.Context, username stri
 		return err
 	}
 
-	r.logger.Debug("delete user", "username", username, "uid", user.UID)
+	r.logger.Debug("delete user", "user", username, "uid", user.UID)
 
 	if err := r.client.DeleteUser(ctx, user.UID); err != nil {
 		return fmt.Errorf("cannot delete user %s: %w", username, err)
@@ -58,7 +58,7 @@ func (r redisEnterpriseDB) findAndDeleteRole(ctx context.Context, username strin
 		return err
 	}
 
-	r.logger.Debug("delete role", "name", role.Name, "uid", role.UID)
+	r.logger.Debug("delete role", "role", role.Name, "uid", role.UID)
 
 	// Found the role with the expected name, so have to assume it was the generated role
 	// Any role permissions associated with the role will be deleted by Redis Enterprise

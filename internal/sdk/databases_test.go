@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,23 +14,10 @@ import (
 func TestClient_UpdateDatabaseWithRetry_retries(t *testing.T) {
 	counter := 0
 	var body []byte
-	var actualUsername, actualPassword string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/bdbs/3" {
-			http.Error(w, fmt.Sprintf("invalid path %s", r.URL.Path), http.StatusInternalServerError)
-			return
-		}
-		if r.Method != http.MethodPut {
-			http.Error(w, fmt.Sprintf("invalid method %s", r.Method), http.StatusInternalServerError)
-			return
-		}
-		var ok bool
-		actualUsername, actualPassword, ok = r.BasicAuth()
-		if !ok {
-			http.Error(w, "basic auth failure", http.StatusInternalServerError)
-			return
-		}
+	username := "expected"
+	password := "Password"
 
+	url := testServer(t, "/v1/bdbs/3", http.MethodPut, username, password, func(w http.ResponseWriter, r *http.Request) {
 		counter++
 		if counter < 3 {
 			http.Error(w, "try again", http.StatusConflict)
@@ -46,17 +32,12 @@ func TestClient_UpdateDatabaseWithRetry_retries(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-	}))
-
-	defer server.Close()
-
-	expectedUsername := "expected"
-	expectedPassword := "Password"
+	})
 
 	subject := &Client{
-		url:      server.URL,
-		username: expectedUsername,
-		password: expectedPassword,
+		url:      url,
+		username: username,
+		password: password,
 		client:   http.DefaultClient,
 	}
 
@@ -70,32 +51,16 @@ func TestClient_UpdateDatabaseWithRetry_retries(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-
-	assert.Equal(t, expectedUsername, actualUsername)
-	assert.Equal(t, expectedPassword, actualPassword)
 	assert.JSONEq(t, `{"roles_permissions": [{"role_uid": 1, "redis_acl_uid": 2}]}`, string(body))
 }
 
 func TestClient_UpdateDatabaseWithRetry_givesUpOnError(t *testing.T) {
 	counter := 0
 	var body []byte
-	var actualUsername, actualPassword string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/bdbs/3" {
-			http.Error(w, fmt.Sprintf("invalid path %s", r.URL.Path), http.StatusInternalServerError)
-			return
-		}
-		if r.Method != http.MethodPut {
-			http.Error(w, fmt.Sprintf("invalid method %s", r.Method), http.StatusInternalServerError)
-			return
-		}
-		var ok bool
-		actualUsername, actualPassword, ok = r.BasicAuth()
-		if !ok {
-			http.Error(w, "basic auth failure", http.StatusInternalServerError)
-			return
-		}
+	username := "expected"
+	password := "Password"
 
+	url := testServer(t, "/v1/bdbs/3", http.MethodPut, username, password, func(w http.ResponseWriter, r *http.Request) {
 		counter++
 		if counter < 3 {
 			http.Error(w, "try again", http.StatusConflict)
@@ -110,14 +75,12 @@ func TestClient_UpdateDatabaseWithRetry_givesUpOnError(t *testing.T) {
 		}
 
 		http.Error(w, "done", http.StatusTeapot)
-	}))
-
-	defer server.Close()
+	})
 
 	subject := &Client{
-		url:      server.URL,
-		username: "expected",
-		password: "Password",
+		url:      url,
+		username: username,
+		password: password,
 		client:   http.DefaultClient,
 	}
 
@@ -136,7 +99,5 @@ func TestClient_UpdateDatabaseWithRetry_givesUpOnError(t *testing.T) {
 		status: 418,
 		body:   "done",
 	}, err)
-	assert.Equal(t, "expected", actualUsername)
-	assert.Equal(t, "Password", actualPassword)
 	assert.JSONEq(t, `{"roles_permissions": [{"role_uid": 1, "redis_acl_uid": 2}]}`, string(body))
 }

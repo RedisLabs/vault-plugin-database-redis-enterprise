@@ -9,11 +9,13 @@ type User struct {
 	Role              string `json:"role"`
 	Roles             []int  `json:"role_uids,omitempty"`
 	Name              string `json:"name"`
+	Email             string `json:"email"`
 	PasswordIssueDate string `json:"password_issue_date"`
 }
 
 type CreateUser struct {
 	Name        string `json:"name,omitempty"`
+	Email       string `json:"email,omitempty"`
 	Password    string `json:"password,omitempty"`
 	Roles       []int  `json:"role_uids,omitempty"`
 	EmailAlerts bool   `json:"email_alerts"`

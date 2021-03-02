@@ -15,6 +15,14 @@ func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
 	return body, nil
 }
 
+func (c *Client) GetUser(ctx context.Context, id int) (User, error) {
+	var body User
+	if err := c.request(ctx, http.MethodGet, fmt.Sprintf("/v1/users/%d", id), nil, &body); err != nil {
+		return User{}, err
+	}
+	return body, nil
+}
+
 func (c *Client) CreateUser(ctx context.Context, create CreateUser) (User, error) {
 	var body User
 	if err := c.request(ctx, http.MethodPost, "/v1/users", create, &body); err != nil {
@@ -40,6 +48,8 @@ func (c *Client) DeleteUser(ctx context.Context, id int) error {
 	return nil
 }
 
+// FindUserByName attempts to find a user, using the same behaviour as the Redis Enterprise UI -
+// attempt to find the user by the `name` field and then try `email`.
 func (c *Client) FindUserByName(ctx context.Context, name string) (User, error) {
 	users, err := c.ListUsers(ctx)
 	if err != nil {
@@ -48,6 +58,12 @@ func (c *Client) FindUserByName(ctx context.Context, name string) (User, error) 
 
 	for _, user := range users {
 		if user.Name == name {
+			return user, nil
+		}
+	}
+
+	for _, user := range users {
+		if user.Email == name {
 			return user, nil
 		}
 	}

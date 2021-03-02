@@ -57,3 +57,46 @@ func TestRedisEnterpriseDB_UpdateUser_With_New_Password(t *testing.T) {
 
 	teardownUserFromDatabase(t, db, userResponse.Username)
 }
+
+func TestRedisEnterpriseDB_UpdateUser_findUserByEmail(t *testing.T) {
+	// The root user for the plugin will typically have been configured using the email address
+	// so the plugin needs to support updating the password of a user based on the email address rather than their name
+	db := setupRedisEnterpriseDB(t, database, false)
+
+	client := sdk.NewClient(hclog.Default())
+	client.Initialise(url, username, password)
+
+	email := "updateStaticUser@example.test"
+
+	role, err := client.FindRoleByName(context.Background(), "DB Member")
+	require.NoError(t, err)
+
+	user, err := client.CreateUser(context.Background(), sdk.CreateUser{
+		Name:        t.Name(),
+		Email:       email,
+		Password:    "Password123!",
+		Roles:       []int{role.UID},
+		EmailAlerts: false,
+		AuthMethod:  "regular",
+	})
+	require.NoError(t, err)
+
+	// Wait a bit so the password updated date will be different
+	time.Sleep(2 * time.Second)
+
+	updateReq := dbplugin.UpdateUserRequest{
+		Username: email,
+		Password: &dbplugin.ChangePassword{
+			NewPassword: "xyzzyxyzzy",
+		},
+	}
+
+	dbtesting.AssertUpdateUser(t, db, updateReq)
+
+	afterUpdate, err := client.GetUser(context.Background(), user.UID)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, user.PasswordIssueDate, afterUpdate.PasswordIssueDate)
+
+	teardownUserFromDatabase(t, db, email)
+}
