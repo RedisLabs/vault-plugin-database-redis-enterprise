@@ -2,7 +2,7 @@
 
 ## Install
 
-The [override-values.yaml](override-values.yaml) file shows an example of
+The [override-values.yaml](../../examples/k8s/override-values.yaml) file shows an example of
 configuring vault to provide a plugin via a volume.
 
 Install vault into the `vault` namespace via helm:
@@ -201,7 +201,7 @@ annotations:
  vault.hashicorp.com/role: 'mydb'
 ```
 
-See the full example of a [workload deployment](log-auth.yaml) for all the details.
+See the full example of a [workload deployment](../../examples/k8s/log-auth.yaml) for all the details.
 
 ## Upgrading the plugin
 

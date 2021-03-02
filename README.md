@@ -14,6 +14,7 @@ This plugin generates credentials for use with Redis Enterprise Database cluster
 
 ## Guides
 - [Using the plugin with Redis Enterprise](docs/guides/using-the-plugin-with-redis-ent.md)
+- [Using the plugin on K8s](docs/guides/using-the-plugin-on-k8s.md)
 - [Vault Deployment](docs/guides/vault-deployment.md)
 
 ## Development
