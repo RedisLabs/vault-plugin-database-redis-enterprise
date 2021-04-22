@@ -102,7 +102,7 @@ export VAULT_TOKEN=...
 ```
 
 and configure a database using your
-Redis Enteprrise endpoint and credentials:
+Redis Enterprise endpoint and credentials:
 
 ```
 vault write database/config/redis-test-mydb plugin_name="redisenterprise-database-plugin" url="https://test.redis.svc:9443" allowed_roles="*" database=mydb username=... password=...
