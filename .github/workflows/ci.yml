@@ -39,11 +39,11 @@ jobs:
 
       - name: Install Redis Enterprise operator
         run: |
-          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v6.0.12-5/bundle.yaml | kubectl apply -f -
+          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v6.0.20-12/bundle.yaml | kubectl apply -f -
           kubectl rollout status deployment/redis-enterprise-operator --watch --timeout=5m || kubectl describe pod -lname=redis-enterprise-operator
 
       - name: Install cluster
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           cat <<EOF |
           apiVersion: "app.redislabs.com/v1"
@@ -51,7 +51,7 @@ jobs:
           metadata:
             name: "test-cluster"
           spec:
-            nodes: 1
+            nodes: 3
             redisEnterpriseNodeResources:
               limits:
                 cpu: 1000m
@@ -66,6 +66,9 @@ jobs:
             kubectl get redisenterpriseclusters.app.redislabs.com test-cluster --output jsonpath='{.status}{"\n"}'
             sleep 5;
           done
+          echo "waiting loop has finished."
+          sleep 5;
+          kubectl get redisenterpriseclusters.app.redislabs.com test-cluster --output jsonpath='{.status}{"\n"}'
 
       - name: Install database
         timeout-minutes: 5
@@ -90,6 +93,9 @@ jobs:
             kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
             sleep 5;
           done
+          echo "waiting loop has finished."
+          sleep 5;
+          kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
 
       - name: Install a service to expose the Redis cluster on a port
         run: |
