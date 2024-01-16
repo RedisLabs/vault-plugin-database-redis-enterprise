@@ -14,16 +14,18 @@ import (
 
 // NewUser creates a new user and authentication credentials in the cluster.
 // The statement is required to be JSON with the structure:
-// {
-//    "role" : "role_name"
-// }
+//      {
+//         "role" : "role_name"
+//       }
+//
 // The role name is must exist the cluster before the user can be created.
 // If a database configuration exists, the role must be bound to an ACL in the database.
 //
 // or
-// {
-//    "acl" : "acl_name"
-// }
+//   {
+//        "acl" : "acl_name"
+//	  }
+
 // The acl name is must exist the cluster before the user can be created.
 // The acl option can only be used with a database.
 func (r *redisEnterpriseDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (_ dbplugin.NewUserResponse, err error) {
