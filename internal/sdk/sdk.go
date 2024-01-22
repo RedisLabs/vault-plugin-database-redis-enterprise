@@ -110,7 +110,7 @@ func (c *Client) request(ctx context.Context, method string, path string, reques
 // closing the response body is important to allow the connection to be reused.
 //
 // From the documentation of the body field on http.Response:
-//   The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive" TCP connections if the Body is not read to completion and closed.
+// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive" TCP connections if the Body is not read to completion and closed.
 func exhaustCloseWithLogOnError(log hclog.Logger, r io.ReadCloser) {
 	if _, err := io.Copy(ioutil.Discard, r); err != nil {
 		log.Warn("failed to exhaust reader, performance may be impacted", "err", err)

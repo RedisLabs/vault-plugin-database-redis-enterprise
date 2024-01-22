@@ -20,7 +20,7 @@ This plugin generates credentials for use with Redis Enterprise Database cluster
 ## Development
 
 If you wish to work on this plugin, you'll first need [Go](https://www.golang.org) installed on your machine
-(version 1.15+ is *required*).
+(version 1.21.5+ is *required*).
 
 Make sure Go is properly installed, including setting up a [GOPATH](https://golang.org/doc/code.html#GOPATH).
 
