@@ -3,7 +3,7 @@ name: CI
 on: [push]
 
 env:
-  GO_VERSION: "1.16"
+  GO_VERSION: "1.21.5"
 
 jobs:
   build:
@@ -39,7 +39,7 @@ jobs:
 
       - name: Install Redis Enterprise operator
         run: |
-          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v6.0.20-12/bundle.yaml | kubectl apply -f -
+          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v7.2.4-12/bundle.yaml | kubectl apply -f -
           kubectl rollout status deployment/redis-enterprise-operator --watch --timeout=5m || kubectl describe pod -lname=redis-enterprise-operator
 
       - name: Install cluster
