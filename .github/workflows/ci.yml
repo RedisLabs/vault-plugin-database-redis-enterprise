@@ -81,7 +81,7 @@ jobs:
           metadata:
             name: mydb
           spec:
-            memory: 100MB
+            memorySize: 100MB
             redisEnterpriseCluster:
               name: test-cluster
             rolesPermissions:

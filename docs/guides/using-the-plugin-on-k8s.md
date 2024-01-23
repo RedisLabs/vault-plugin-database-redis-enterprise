@@ -72,7 +72,7 @@ kind: RedisEnterpriseDatabase
 metadata:
   name: mydb
 spec:
-  memory: 100MB
+  memorySize: 100MB
   rolesPermissions:
   - type: redis-enterprise
     role: "DB Member"
