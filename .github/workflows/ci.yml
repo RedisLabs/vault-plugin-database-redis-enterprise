@@ -1,9 +1,11 @@
 name: CI
 
-on: [push]
+on:
+  - push
+  - workflow_dispatch
 
 env:
-  GO_VERSION: "1.16"
+  GO_VERSION: "1.21.5"
 
 jobs:
   build:
@@ -32,14 +34,14 @@ jobs:
         uses: engineerd/setup-kind@v0.5.0
         with:
           config: bootstrap/kind-config.yml
-          version: v0.11.1
+          version: v0.18.0
 
       - name: Test Kubernetes
         run: kubectl cluster-info
 
       - name: Install Redis Enterprise operator
         run: |
-          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v6.0.20-12/bundle.yaml | kubectl apply -f -
+          curl --silent --fail https://raw.githubusercontent.com/RedisLabs/redis-enterprise-k8s-docs/v7.2.4-12/bundle.yaml | kubectl apply -f -
           kubectl rollout status deployment/redis-enterprise-operator --watch --timeout=5m || kubectl describe pod -lname=redis-enterprise-operator
 
       - name: Install cluster
@@ -70,32 +72,6 @@ jobs:
           sleep 5;
           kubectl get redisenterpriseclusters.app.redislabs.com test-cluster --output jsonpath='{.status}{"\n"}'
 
-      - name: Install database
-        timeout-minutes: 5
-        run: |
-          cat <<EOF |
-          apiVersion: app.redislabs.com/v1alpha1
-          kind: RedisEnterpriseDatabase
-          metadata:
-            name: mydb
-          spec:
-            memory: 100MB
-            redisEnterpriseCluster:
-              name: test-cluster
-            rolesPermissions:
-            - type: redis-enterprise
-              role: "DB Member"
-              acl: "Not Dangerous"
-          EOF
-          kubectl apply -f -
-          while [[ "$(kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status.status}')" != "active" ]]; do
-            echo "waiting for the database to be running"
-            kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
-            sleep 5;
-          done
-          echo "waiting loop has finished."
-          sleep 5;
-          kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
 
       - name: Install a service to expose the Redis cluster on a port
         run: |
@@ -129,6 +105,55 @@ jobs:
         run: echo "TEST_PASSWORD=$(kubectl get secret test-cluster --output jsonpath='{.data.password}' | base64 -d)" >> $GITHUB_ENV
       - name: Set URL
         run: echo "TEST_DB_URL=https://localhost:$(kubectl get svc external-access --output jsonpath='{.spec.ports[].nodePort}')" >> $GITHUB_ENV
+
+      - name: Create role
+        timeout-minutes: 5
+        run: |
+          curl --insecure "${TEST_DB_URL}/v1/roles" \
+          --header "Content-Type: application/json" \
+          -u "${TEST_USERNAME}:${TEST_PASSWORD}" \
+          --data "{
+              \"name\": \"DB Member\",
+              \"management\": \"db_member\"
+          }"
+
+      - name: Create ACL
+        timeout-minutes: 5
+        run: |
+          curl --insecure "${TEST_DB_URL}/v1/redis_acls" \
+          --header "Content-Type: application/json" \
+          -u "${TEST_USERNAME}:${TEST_PASSWORD}" \
+          --data "{
+              \"name\": \"Not Dangerous\",
+              \"acl\": \"+@all -@dangerous ~*\"
+          }"
+
+      - name: Install database
+        timeout-minutes: 5
+        run: |
+          cat <<EOF |
+          apiVersion: app.redislabs.com/v1alpha1
+          kind: RedisEnterpriseDatabase
+          metadata:
+            name: mydb
+          spec:
+            memorySize: 100MB
+            redisEnterpriseCluster:
+              name: test-cluster
+            rolesPermissions:
+            - type: redis-enterprise
+              role: "DB Member"
+              acl: "Not Dangerous"
+          EOF
+          kubectl apply -f -
+          while [[ "$(kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status.status}')" != "active" ]]; do
+            echo "waiting for the database to be running"
+            kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
+            sleep 5;
+          done
+          echo "waiting loop has finished."
+          sleep 5;
+          kubectl get redisenterprisedatabase.app.redislabs.com mydb --output jsonpath='{.status}{"\n"}'
 
       # This check is ensure that the cluster is running and accessible so the CI fails fast,
       # rather than waiting several minutes for all of the Go tests to eventually time out
