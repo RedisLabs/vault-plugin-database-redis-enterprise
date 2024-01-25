@@ -52,6 +52,8 @@ If you want to replicate:
 apiVersion: app.redislabs.com/v1alpha1
 kind: RedisEnterpriseDatabase
 metadata:
+  labels:
+    app: redis-enterprise
   name: mydb
 spec:
   memorySize: 100MB
