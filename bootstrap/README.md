@@ -52,9 +52,11 @@ If you want to replicate:
 apiVersion: app.redislabs.com/v1alpha1
 kind: RedisEnterpriseDatabase
 metadata:
+  labels:
+    app: redis-enterprise
   name: mydb
 spec:
-  memory: 100MB
+  memorySize: 100MB
   rolesPermissions:
   - type: redis-enterprise
     role: "DB Member"

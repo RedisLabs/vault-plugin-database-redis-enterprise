@@ -70,9 +70,11 @@ Throughout this section we'll assume a database created with the following CR na
 apiVersion: app.redislabs.com/v1alpha1
 kind: RedisEnterpriseDatabase
 metadata:
+  labels:
+    app: redis-enterprise
   name: mydb
 spec:
-  memory: 100MB
+  memorySize: 100MB
   rolesPermissions:
   - type: redis-enterprise
     role: "DB Member"
