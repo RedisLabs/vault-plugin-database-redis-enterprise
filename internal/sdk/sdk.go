@@ -68,6 +68,7 @@ func (c *Client) request(ctx context.Context, method string, path string, reques
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, requestBodyReader)
+	req.Close = true
 	if err != nil {
 		return fmt.Errorf("unable to perform request %s %s: %w", method, path, err)
 	}
