@@ -1,10 +1,12 @@
 # This GitHub action can publish assets for release when a tag is created.
 # Currently its setup to run on any tag that matches the pattern "v*" (ie. v0.1.0).
+# A manual workflow_dispatch run is always a dry-run (snapshot, no publish).
 name: release
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
@@ -23,6 +25,14 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: ~> v2
-          args: release --clean
+          args: ${{ github.event_name == 'workflow_dispatch' && 'release --snapshot --clean --skip=publish' || 'release --clean' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload dry-run artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dry-run-dist
+          path: dist/
+          retention-days: 7
